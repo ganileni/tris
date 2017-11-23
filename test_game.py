@@ -46,3 +46,14 @@ class TestGame(TestCase):
         self.game = Game()
         self.game.player_move(x=0,y=0,player=1)
         self.assertEqual(self.game.state[0,0],1)
+
+    def test_check_win(self):
+        self.game = Game()
+        self.game.state = (np.array([[0, 0, 1],
+                                    [2, 0, 1],
+                                    [0, 2, 1]]))
+        reverse_state = (np.array([[0, 0, 2],
+                                    [1, 0, 2],
+                                    [0, 1, 2]]))
+        self.assertListEqual(self.game.reverse_state.flatten().tolist(),
+                             reverse_state.flatten().tolist())
