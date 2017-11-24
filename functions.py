@@ -1,13 +1,20 @@
 import numpy as np
-from collections import defaultdict
-from tqdm import tqdm
-
-# http://www.cs.dartmouth.edu/~lorenzo/teaching/cs134/Archive/Spring2009/final/PengTao/final_report.pdf
+import pickle
 
 x_coordinates = [0, 1, 2]
 y_coordinates = x_coordinates
 starting_state = lambda: np.zeros((3, 3))
 max_state_hash = 3 ** 9
+
+
+def pickle_save(obj, filename):
+    with open(filename, 'wb') as file:
+        pickle.dump(obj, file)
+
+
+def pickle_load(filename):
+    with open(filename, 'rb') as file:
+        return pickle.load(file)
 
 
 def hash_from_state(state):
@@ -190,11 +197,13 @@ class BaseAgent:
 
     def save_agent(self, path):
         """save agent to disk"""
-        raise NotImplementedError
+        pickle_save(self.__dict__, path)
 
     def load_agent(self, path):
         """load an agent from disk"""
-        raise NotImplementedError
+        _dict = pickle_load(path)
+        for key in _dict:
+            setattr(self, key, _dict[key])
 
 
 class RandomAgent(BaseAgent):
@@ -222,13 +231,13 @@ class HumanAgent(BaseAgent):
 
     def decide_move(self, hashed_game_state):
         state = state_from_hash(hashed_game_state)
-        print("\t0\t1\t2\tx")
+        print("\n\n\t0\t1\t2\tx")
         for row, rowname in zip(state, range(3)):
             print('\t'.join([str(rowname)] + [self.translate[_] for _ in row]))
         print('y\n')
         # get input from player
-        x = int(input('What x?'))
-        y = int(input('What y?'))
+        x = int(input('What x? '))
+        y = int(input('What y? '))
         return (x, y)
 
         raise NotImplementedError
@@ -269,10 +278,10 @@ class MENACEAgent(BaseAgent):
         for state, next_state in zip(self.state_history, self.next_state_history):
             next_state_object = self.states_space[state].actions[next_state]
             # add or remove beads in all states visited during the game
-            ## according to win loss and draw
+            # according to win loss and draw
             next_state_object.value += self.change_beads[result]
             # number of beads can't go below 0
             if next_state_object.value < 0:
                 next_state_object.value = 0
         # clear memory
-        self.state_history, self.next_state_history = [], []
+        self.state_history, self.next_state_history, self.move_history = [], [], []
