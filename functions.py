@@ -212,10 +212,25 @@ class RandomAgent(BaseAgent):
 
 
 class HumanAgent(BaseAgent):
-    """should implement the interface for a human to play vs an agent"""
+    """implements the interface for a human to play vs an agent"""
 
-    def decide_move(self, game_state):
+    def __init__(self):
+        super().__init__()
+        self.translate = {0: '_',
+                          1: 'X',
+                          2: 'O'}
+
+    def decide_move(self, hashed_game_state):
+        state = state_from_hash(hashed_game_state)
+        print("\t0\t1\t2\tx")
+        for row, rowname in zip(state, range(3)):
+            print('\t'.join([str(rowname)] + [self.translate[_] for _ in row]))
+        print('y\n')
         # get input from player
+        x = int(input('What x?'))
+        y = int(input('What y?'))
+        return (x, y)
+
         raise NotImplementedError
 
     def endgame(self, result):
@@ -239,12 +254,12 @@ class MENACEAgent(BaseAgent):
                 possible_actions[action].value = beads_n
 
     def decide_move(self, hashed_state):
-        #retrieve GameState object
+        # retrieve GameState object
         current_state = self.states_space[hashed_state]
         actions = [_ for _ in current_state.actions]
         # number of beads per action will be proportional to probability of choice
         beads = np.array([current_state.actions[_].value for _ in actions])
-        #normalize probabilities
+        # normalize probabilities
         beads = beads / beads.sum()
         choice = np.random.choice(actions, size=1, p=beads)[0]
         self.next_state_history.append(choice)
@@ -253,11 +268,11 @@ class MENACEAgent(BaseAgent):
     def endgame(self, result):
         for state, next_state in zip(self.state_history, self.next_state_history):
             next_state_object = self.states_space[state].actions[next_state]
-            #add or remove beads in all states visited during the game
+            # add or remove beads in all states visited during the game
             ## according to win loss and draw
             next_state_object.value += self.change_beads[result]
-            #number of beads can't go below 0
-            if next_state_object.value <0:
-                next_state_object.value  = 0
-        #clear memory
+            # number of beads can't go below 0
+            if next_state_object.value < 0:
+                next_state_object.value = 0
+        # clear memory
         self.state_history, self.next_state_history = [], []
