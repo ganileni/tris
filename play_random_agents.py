@@ -1,4 +1,4 @@
-from functions import Match, RandomAgent, state_from_hash
+from functions import Match, RandomAgent
 
 # play a game between two random agents, print the moves and the result
 

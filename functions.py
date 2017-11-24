@@ -158,8 +158,9 @@ class Match:
 
 class BaseAgent:
     """implements the base logic of an agent"""
+
     def __init__(self):
-        self.states_list = hash_all_states()
+        self.states_space = hash_all_states()
         self.state_history = []
         self.move_history = []
         # generate all possible game states
@@ -198,9 +199,10 @@ class BaseAgent:
 
 class RandomAgent(BaseAgent):
     """an agent that chooses between possible actions at random"""
+
     def decide_move(self, hashed_game_state):
         possible_actions = (self
-                            .states_list[hashed_game_state]
+                            .states_space[hashed_game_state]
                             .actions)
         return possible_actions[np.random.choice(list(possible_actions.keys()),
                                                  size=1)[0]].coordinates
@@ -211,6 +213,7 @@ class RandomAgent(BaseAgent):
 
 class HumanAgent(BaseAgent):
     """should implement the interface for a human to play vs an agent"""
+
     def decide_move(self, game_state):
         # get input from player
         raise NotImplementedError
@@ -218,3 +221,43 @@ class HumanAgent(BaseAgent):
     def endgame(self, result):
         # remark who won
         pass
+
+
+class MENACEAgent(BaseAgent):
+    """reproduces MENACE agent, defined in
+    Michie, Donald. "Trial and error." Science Survey, Part 2 (1961): 129-145."""
+
+    def __init__(self, beads_n=100, loss=-2, win=+2, draw=-1):
+        super().__init__()
+        self.next_state_history = []
+        self.change_beads = dict()
+        self.change_beads[1], self.change_beads[-1], self.change_beads[0] = win, loss, draw
+        self.win, self.loss, self.draw = win, loss, draw
+        for key in self.states_space:
+            possible_actions = self.states_space[key].actions
+            for action in possible_actions:
+                possible_actions[action].value = beads_n
+
+    def decide_move(self, hashed_state):
+        #retrieve GameState object
+        current_state = self.states_space[hashed_state]
+        actions = [_ for _ in current_state.actions]
+        # number of beads per action will be proportional to probability of choice
+        beads = np.array([current_state.actions[_].value for _ in actions])
+        #normalize probabilities
+        beads = beads / beads.sum()
+        choice = np.random.choice(actions, size=1, p=beads)[0]
+        self.next_state_history.append(choice)
+        return current_state.actions[choice].coordinates
+
+    def endgame(self, result):
+        for state, next_state in zip(self.state_history, self.next_state_history):
+            next_state_object = self.states_space[state].actions[next_state]
+            #add or remove beads in all states visited during the game
+            ## according to win loss and draw
+            next_state_object.value += self.change_beads[result]
+            #number of beads can't go below 0
+            if next_state_object.value <0:
+                next_state_object.value  = 0
+        #clear memory
+        self.state_history, self.next_state_history = [], []
