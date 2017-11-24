@@ -17,11 +17,6 @@ def pickle_load(filename):
         return pickle.load(file)
 
 
-def hash_from_state(state):
-    # state must be 3x3 np array
-    return sum([cell * (3 ** power) for power, cell in enumerate(state.flatten())])
-
-
 def ternary(n):
     if not n:
         return ''.zfill(9)
@@ -32,16 +27,9 @@ def ternary(n):
     return nums + [0] * (9 - len(nums))
 
 
-def hash_all_states():
-    all_states = dict()
-    for hash_id in range(max_state_hash):
-        all_states[hash_id] = GameState(hash_id)
-    return all_states
-
-
-# thank god there is a bijection
-# we'll use that to generate all possible states
 def state_from_hash(hash_id):
+    """takes in a hash and outputs a 3x3 numpy array (a game state)
+    it's the inverse of hash_from_state (there is a bijection)"""
     hash_id = (x for x in ternary(hash_id))
     state = starting_state()
     for y in y_coordinates:
@@ -50,14 +38,17 @@ def state_from_hash(hash_id):
     return state.T
 
 
-class Action:
-    def __init__(self, x, y, value=0):
-        self.coordinates = (x, y)
-        # this is supposed to store policy expectation value
-        self.value = value
+def hash_from_state(state):
+    """takes in a 3x3 numpy array (a game state)
+    and hashes it with powers of 3. returns an int.
+    it's the inverse of the state_from_hash"""
+    # state must be 3x3 np array
+    return sum([cell * (3 ** power) for power, cell in enumerate(state.flatten())])
 
 
 def eval_possible_actions(state):
+    """given a state, evaluate and return a dict containing
+    all possible actions that can be taken from that state."""
     actions = dict()
     for y in y_coordinates:
         for x in x_coordinates:
@@ -69,21 +60,50 @@ def eval_possible_actions(state):
     return actions
 
 
+class Action:
+    """represents an action taken by an agent.
+    x,y are the coordinates where the agent
+    puts their cross (or naught).
+    value might be used to store information
+    about the action, according to
+    the agent's implementation"""
+
+    def __init__(self, x, y, value=0):
+        self.coordinates = (x, y)
+        # this is supposed to store policy expectation value
+        self.value = value
+
+
+def hash_all_states():
+    """produce a dict that maps all possible hashes
+    to all possible game states.
+    symmetries are not taken into account in this implementation."""
+    all_states = dict()
+    for hash_id in range(max_state_hash):
+        all_states[hash_id] = GameState(hash_id)
+    return all_states
+
+
 class GameState:
+    """represents a state of the game. contains the state as a 3x3 np.array
+    the hash of the state, and a dict of all possible actions that can be taken."""
+
     def __init__(self, id_hash):
         self.state = state_from_hash(id_hash)
-        # id for hashing
         self.hash = id_hash
         self.actions = eval_possible_actions(self.state)
 
 
 class Game:
+    """implements the rules of tic tac toe"""
+
     def __init__(self):
         self.state = starting_state()
 
     @property
     def reverse_state(self):
-        """returns game state with 1 and 2 swapped"""
+        """returns game state with 1 and 2 swapped.
+        lazily evaluated."""
         rs = self.state.copy()
         ones, twos = rs == 1, rs == 2
         rs[ones], rs[twos] = 2, 1
@@ -119,6 +139,9 @@ class Game:
 
 
 class Match:
+    """implements the logic to interface two players
+    according to the rules of tic-tac-toe"""
+
     def __init__(self, player1, player2):
         self.game = Game()
         self.player1 = player1
@@ -127,14 +150,13 @@ class Match:
         self.history = []
         # a random bool
         self.who_plays = np.random.rand() >= .5
-        # better to implement this with functools!
-        # assign to random bools in a dict
-        # make sure implementation is not buggy and youre not
-        # confusing player 1 and player 2
+        # maybe better to implement this with functools?
+        # dict with bool keys. this will alternate between players.
         self.player_actions = {self.who_plays: self.move_player1,
                                not self.who_plays: self.move_player2}
 
     def move_player1(self):
+        """ask for player1's move and apply it to the game"""
         move = self.player1.move(self.game.state)
         self.game.player_move(player=1, x=move[0], y=move[1])
 
@@ -144,20 +166,28 @@ class Match:
         self.game.player_move(player=2, x=move[0], y=move[1])
 
     def play(self):
+        """play in a loop until game ends,
+        then tell result to agents
+        finally return it: 1=win, -1=loss, 0=draw.
+        """
+        # while game is not finished
         while self.result is None:
+            # switch to next player
             self.who_plays = not self.who_plays
+            # ask player to move
             self.player_actions[self.who_plays]()
+            # check for game end
             self.result = self.game.check_win()
             self.history.append(self.game.state.copy())
         # when the game is done, assign scores
-        if self.result:
-            if self.result == 1:
+        if self.result:  # if not draw
+            if self.result == 1:  # if win player1
                 self.player1.endgame(1)
                 self.player2.endgame(-1)
-            else:
+            else:  # if win player2
                 self.player1.endgame(-1)
                 self.player2.endgame(1)
-        else:
+        else:  # if draw
             self.player1.endgame(0)
             self.player2.endgame(0)
         return self.result
@@ -167,10 +197,10 @@ class BaseAgent:
     """implements the base logic of an agent"""
 
     def __init__(self):
+        # generate all possible game states.
         self.states_space = hash_all_states()
         self.state_history = []
         self.move_history = []
-        # generate all possible game states
 
     def move(self, game_state):
         """get the game as an argument, decide what move to make,
@@ -182,7 +212,8 @@ class BaseAgent:
 
     def endgame(self, result):
         """when game finished, calculate new policy from result
-        result values of +1 0 -1 stand for win, draw and loss"""
+        and cleanup to return to "new game" agent state
+        (result values of +1 0 -1 stand for win, draw and loss)"""
         raise NotImplementedError
 
     def save_in_memory(self, move, hashed_state):
@@ -192,7 +223,7 @@ class BaseAgent:
         self.move_history.append(move)
 
     def decide_move(self, game_state):
-        """decide next move based on game state"""
+        """decide and then return the next move based on game state"""
         raise NotImplementedError
 
     def save_agent(self, path):
@@ -213,10 +244,14 @@ class RandomAgent(BaseAgent):
         possible_actions = (self
                             .states_space[hashed_game_state]
                             .actions)
-        return possible_actions[np.random.choice(list(possible_actions.keys()),
-                                                 size=1)[0]].coordinates
+        return possible_actions[np.random.choice(
+            list(
+                possible_actions.keys()),
+                size=1)[0]
+        ].coordinates
 
     def endgame(self, result):
+        # do nothing
         pass
 
 
@@ -230,6 +265,7 @@ class HumanAgent(BaseAgent):
                           2: 'O'}
 
     def decide_move(self, hashed_game_state):
+        """print the game state and ask for action"""
         state = state_from_hash(hashed_game_state)
         print("\n\n\t0\t1\t2\tx")
         for row, rowname in zip(state, range(3)):
@@ -238,7 +274,7 @@ class HumanAgent(BaseAgent):
         # get input from player
         x = int(input('What x? '))
         y = int(input('What y? '))
-        return (x, y)
+        return x, y
 
         raise NotImplementedError
 
@@ -252,6 +288,10 @@ class MENACEAgent(BaseAgent):
     Michie, Donald. "Trial and error." Science Survey, Part 2 (1961): 129-145."""
 
     def __init__(self, beads_n=100, loss=-2, win=+2, draw=-1):
+        """parameters:
+        beads_n == how many starting beads for each action
+        (loss,win,draw) == how many beads to add for each action in case of (loss,win,draw)
+        """
         super().__init__()
         self.next_state_history = []
         self.change_beads = dict()
