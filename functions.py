@@ -271,15 +271,20 @@ class HumanAgent(BaseAgent):
         for row, rowname in zip(state, range(3)):
             print('\t'.join([str(rowname)] + [self.translate[_] for _ in row]))
         print('y\n')
-        # get input from player
-        x = int(input('What x? '))
-        y = int(input('What y? '))
+        # get input from player, loop until a legal move is input
+        move_unknown = True
+        while move_unknown:
+            x = int(input('What x? '))
+            y = int(input('What y? '))
+            if not state[y, x]: move_unknown = False
+            else: print("illegal move!")
         return x, y
 
         raise NotImplementedError
 
     def endgame(self, result):
-        # remark who won
+        comment = {1:'you won.', -1:'you lost.', 0:"it's a draw."}
+        print(comment[result])
         pass
 
 

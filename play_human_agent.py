@@ -7,6 +7,3 @@ player1, player2 = HumanAgent(), RandomAgent()
 match = Match(player1, player2)
 # play loop until end game
 match.play()
-for _ in match.history:
-    print(_)
-print('game result is', match.result)
