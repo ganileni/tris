@@ -76,7 +76,7 @@ class Action:
 
 def hash_all_states():
     """produce a dict that maps all possible hashes
-    to all possible game states.
+    to all possible game state_space.
     symmetries are not taken into account in this implementation."""
     all_states = dict()
     for hash_id in range(max_state_hash):
@@ -179,7 +179,7 @@ class Match:
             # check for game end
             self.result = self.game.check_win()
             self.history.append(self.game.state.copy())
-        # when the game is done, assign scores
+        # when the game is done, assign rewards
         if self.result:  # if not draw
             if self.result == 1:  # if win player1
                 self.player1.endgame(1)
@@ -193,22 +193,37 @@ class Match:
         return self.result
 
 
+class Step:
+    def __init__(self, state_t, action_t, coordinates_t):
+        self.state_t = state_t
+        # the action is actually represented bu the hash of
+        # the next state
+        self.action_t = action_t
+        self.coordinates_t = coordinates_t
+
+    def __repr__(self):
+        return ("Step: "
+                + str(int(self.state_t))
+                + " -> "
+                + str(int(self.action_t))
+                + "\n crossing: " + str(self.coordinates_t))
+
+
 class BaseAgent:
     """implements the base logic of an agent"""
 
     def __init__(self):
-        # generate all possible game states.
-        self.states_space = hash_all_states()
-        self.state_history = []
-        self.move_history = []
+        # generate all possible game state_space.
+        self.state_space = hash_all_states()
+        self.history = []
 
     def move(self, game_state):
         """get the game as an argument, decide what move to make,
         save in memory and return the chosen move"""
         hashed_state = hash_from_state(game_state)
-        move = self.decide_move(hashed_state)
-        self.save_in_memory(move, hashed_state)
-        return move
+        move_coordinates, next_state = self.decide_move(hashed_state)
+        self.save_in_memory(move_coordinates, hashed_state, next_state)
+        return move_coordinates
 
     def endgame(self, result):
         """when game finished, calculate new policy from result
@@ -216,14 +231,13 @@ class BaseAgent:
         (result values of +1 0 -1 stand for win, draw and loss)"""
         raise NotImplementedError
 
-    def save_in_memory(self, move, hashed_state):
+    def save_in_memory(self, move_coordinates, hashed_state, next_state):
         """remember the sequence of moves from which to calculate
         the new policy"""
-        self.state_history.append(hashed_state)
-        self.move_history.append(move)
+        self.history.append(Step(hashed_state, next_state, move_coordinates))
 
     def decide_move(self, game_state):
-        """decide and then return the next move based on game state"""
+        """decide and then return the next state and next move based on current game state"""
         raise NotImplementedError
 
     def save_agent(self, path):
@@ -242,13 +256,13 @@ class RandomAgent(BaseAgent):
 
     def decide_move(self, hashed_game_state):
         possible_actions = (self
-                            .states_space[hashed_game_state]
+                            .state_space[hashed_game_state]
                             .actions)
-        return possible_actions[np.random.choice(
+        action_taken = np.random.choice(
             list(
                 possible_actions.keys()),
-                size=1)[0]
-        ].coordinates
+            size=1)[0]
+        return possible_actions[action_taken].coordinates, action_taken
 
     def endgame(self, result):
         # do nothing
@@ -276,14 +290,16 @@ class HumanAgent(BaseAgent):
         while move_unknown:
             x = int(input('What x? '))
             y = int(input('What y? '))
-            if not state[y, x]: move_unknown = False
-            else: print("illegal move!")
+            if not state[y, x]:
+                move_unknown = False
+            else:
+                print("illegal move!")
         return x, y
 
         raise NotImplementedError
 
     def endgame(self, result):
-        comment = {1:'you won.', -1:'you lost.', 0:"it's a draw."}
+        comment = {1: 'you won.', -1: 'you lost.', 0: "it's a draw."}
         print(comment[result])
         pass
 
@@ -298,35 +314,56 @@ class MENACEAgent(BaseAgent):
         (loss,win,draw) == how many beads to add for each action in case of (loss,win,draw)
         """
         super().__init__()
-        self.next_state_history = []
         self.change_beads = dict()
         self.change_beads[1], self.change_beads[-1], self.change_beads[0] = win, loss, draw
         self.win, self.loss, self.draw = win, loss, draw
-        for key in self.states_space:
-            possible_actions = self.states_space[key].actions
+        for key in self.state_space:
+            possible_actions = self.state_space[key].actions
             for action in possible_actions:
                 possible_actions[action].value = beads_n
 
     def decide_move(self, hashed_state):
         # retrieve GameState object
-        current_state = self.states_space[hashed_state]
+        current_state = self.state_space[hashed_state]
         actions = [_ for _ in current_state.actions]
         # number of beads per action will be proportional to probability of choice
         beads = np.array([current_state.actions[_].value for _ in actions])
         # normalize probabilities
         beads = beads / beads.sum()
         choice = np.random.choice(actions, size=1, p=beads)[0]
-        self.next_state_history.append(choice)
-        return current_state.actions[choice].coordinates
+        return current_state.actions[choice].coordinates, choice
 
     def endgame(self, result):
-        for state, next_state in zip(self.state_history, self.next_state_history):
-            next_state_object = self.states_space[state].actions[next_state]
-            # add or remove beads in all states visited during the game
+        for step in self.history:
+            next_state_object = self.state_space[step.state_t].actions[step.action_t]
+            # add or remove beads in all state_space visited during the game
             # according to win loss and draw
             next_state_object.value += self.change_beads[result]
             # number of beads can't go below 0
             if next_state_object.value < 0:
                 next_state_object.value = 0
         # clear memory
-        self.state_history, self.next_state_history, self.move_history = [], [], []
+        self.history = []
+
+
+class Q_function():
+    def __init__(self, state_space):
+        self.state_space = state_space
+
+    def __call__(self, state, action):
+        return self.state_space[state].actions[action]
+
+
+class QLearningAgent(BaseAgent):
+    def __init__(self, temperature=.5, learning_rate=.1, discount=.9):
+        self.temperature = temperature
+        self.learning_rate = learning_rate
+        self.discount = discount
+        super().__init__()
+        self.Q = Q_function(self.state_space)
+
+    def decide_move(self, game_state):
+        pass
+
+    def endgame(self, result):
+        pass
