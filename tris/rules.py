@@ -112,15 +112,15 @@ class Match:
         # self.who_plays before calling Match.play()
         self.who_plays = np.random.rand() >= .5
         # dict with bool keys. this will alternate between players.
-        self.player_actions = {False: self.move_player1,
-                               True: self.move_player2}
+        self.player_actions = {False: self._move_player1,
+                               True: self._move_player2}
 
-    def move_player1(self):
+    def _move_player1(self):
         """ask for player1's move and apply it to the game"""
         move = self.player1.get_move(game_state=self.game.state)
         self.game.player_move(player=1, x=move[0], y=move[1])
 
-    def move_player2(self):
+    def _move_player2(self):
         # reverse the state because each agent sees 1 as "me" and 2 as "opponent"
         move = self.player2.get_move(game_state=self.game.reverse_state)
         self.game.player_move(player=2, x=move[0], y=move[1])
@@ -132,14 +132,11 @@ class Match:
         """
         # while game is not finished
         while self.result is None:
-            # switch to next player
-            self.who_plays = not self.who_plays
-            # ask player to move
-            self.player_actions[self.who_plays]()
-            # check for game end
-            self.result = self.game.check_win()
-            self.history.append(self.game.state.copy())
-        # when the game is done, assign rewards
+            self._next_step()
+        # when the game is done
+        return self._assign_rewards()
+
+    def _assign_rewards(self):
         if self.result:  # if not draw
             if self.result == 1:  # if win player1
                 self.player1.endgame(1)
@@ -151,3 +148,14 @@ class Match:
             self.player1.endgame(0)
             self.player2.endgame(0)
         return self.result
+
+    def _next_step(self):
+        """play next player move and check if game is finished"""
+        # switch to next player
+        self.who_plays = not self.who_plays
+        # ask player to move
+        self.player_actions[self.who_plays]()
+        # check for game end
+        self.result = self.game.check_win()
+        # save in history
+        self.history.append(self.game.state.copy())
