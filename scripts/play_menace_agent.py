@@ -1,5 +1,7 @@
-from functions import Match, RandomAgent, MENACEAgent
 from tqdm import tqdm
+
+from tris.rules import Match
+from tris.agents import RandomAgent, MENACEAgent
 
 # play a game between two random agents, print the moves and the result
 

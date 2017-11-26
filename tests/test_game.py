@@ -1,6 +1,8 @@
 from unittest import TestCase
-from functions import Game
+
 import numpy as np
+
+from tris.rules import Game
 
 
 class TestGame(TestCase):

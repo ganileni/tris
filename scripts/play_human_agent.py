@@ -1,4 +1,5 @@
-from functions import Match, RandomAgent, HumanAgent
+from tris.rules import Match
+from tris.agents import RandomAgent, HumanAgent
 
 # play a game between a human and a random agent
 

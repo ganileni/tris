@@ -1,5 +1,8 @@
-from functions import Match, RandomAgent
 from copy import deepcopy
+
+from tris.rules import Match
+from tris.agents import RandomAgent
+
 # play a game between two random agents, print the moves and the result
 
 # initialize agents and match
