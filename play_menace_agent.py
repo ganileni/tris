@@ -29,9 +29,3 @@ for state in menace.state_space:
         if state_actions[action].value != beads_n:
             changed_states += 1
 print(changed_states / all_actions)
-# print('couples of moves')
-# print(list(zip(player1.move_history, player2.move_history)))
-# print('sequence of state_space')
-# for _ in match.history:
-#     print(_)
-# print('game result is', match.result)

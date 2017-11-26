@@ -17,6 +17,29 @@ def pickle_load(filename):
         return pickle.load(file)
 
 
+def softmax(X, temperature=1.0, axis=None):
+    """
+    adapted from: https://nolanbconaway.github.io/blog/2017/softmax-numpy
+    credit where is due.
+
+    Compute the softmax of each element along an axis of X.
+
+    Parameters
+    ----------
+    X: 1D-Array. Probably should be floats.
+    temperature (optional): float parameter, used as a multiplier
+        prior to exponentiation. Default = 1.0
+    Returns an array the same size as X. The result will sum to 1.
+    """
+    # div by temperature
+    y = np.array(X) / float(temperature)
+    # subtract the max for numerical stability & expontentiate
+    y = np.exp(y - np.max(y))
+    # take the sum & divide elementwise
+    p = y / y.sum()
+    return p
+
+
 def ternary(n):
     if not n:
         return ''.zfill(9)
@@ -148,21 +171,23 @@ class Match:
         self.player2 = player2
         self.result = None
         self.history = []
-        # a random bool
+        # a random bool, determines who plays first
+        # (False -> player1)
+        # note you can alterate this by changing
+        # self.who_plays before calling Match.play()
         self.who_plays = np.random.rand() >= .5
-        # maybe better to implement this with functools?
         # dict with bool keys. this will alternate between players.
-        self.player_actions = {self.who_plays: self.move_player1,
-                               not self.who_plays: self.move_player2}
+        self.player_actions = {False: self.move_player1,
+                               True: self.move_player2}
 
     def move_player1(self):
         """ask for player1's move and apply it to the game"""
-        move = self.player1.move(self.game.state)
+        move = self.player1.get_move(game_state=self.game.state)
         self.game.player_move(player=1, x=move[0], y=move[1])
 
     def move_player2(self):
         # reverse the state because each agent sees 1 as "me" and 2 as "opponent"
-        move = self.player2.move(self.game.reverse_state)
+        move = self.player2.get_move(game_state=self.game.reverse_state)
         self.game.player_move(player=2, x=move[0], y=move[1])
 
     def play(self):
@@ -217,7 +242,7 @@ class BaseAgent:
         self.state_space = hash_all_states()
         self.history = []
 
-    def move(self, game_state):
+    def get_move(self, game_state):
         """get the game as an argument, decide what move to make,
         save in memory and return the chosen move"""
         hashed_state = hash_from_state(game_state)
@@ -258,11 +283,11 @@ class RandomAgent(BaseAgent):
         possible_actions = (self
                             .state_space[hashed_game_state]
                             .actions)
-        action_taken = np.random.choice(
+        choice = np.random.choice(
             list(
                 possible_actions.keys()),
             size=1)[0]
-        return possible_actions[action_taken].coordinates, action_taken
+        return possible_actions[choice].coordinates, choice
 
     def endgame(self, result):
         # do nothing
@@ -294,9 +319,7 @@ class HumanAgent(BaseAgent):
                 move_unknown = False
             else:
                 print("illegal move!")
-        return x, y
-
-        raise NotImplementedError
+        return (x, y), None
 
     def endgame(self, result):
         comment = {1: 'you won.', -1: 'you lost.', 0: "it's a draw."}
@@ -346,24 +369,40 @@ class MENACEAgent(BaseAgent):
         self.history = []
 
 
-class Q_function():
-    def __init__(self, state_space):
-        self.state_space = state_space
-
-    def __call__(self, state, action):
-        return self.state_space[state].actions[action]
-
-
 class QLearningAgent(BaseAgent):
-    def __init__(self, temperature=.5, learning_rate=.1, discount=.9):
+    """agent based on a q-learning rule for learning
+    and softmax policy. low temperature == low exploration"""
+
+    def __init__(self, temperature=1, learning_rate=.1, discount=.9):
+        super().__init__()
         self.temperature = temperature
         self.learning_rate = learning_rate
         self.discount = discount
-        super().__init__()
-        self.Q = Q_function(self.state_space)
 
     def decide_move(self, game_state):
-        pass
+        possible_actions = self.state_space[game_state].actions
+        # find Q-values for possible actions
+        Q_values = [possible_actions[_].value for _ in possible_actions.keys()]
+        choice = np.random.choice(list(possible_actions.keys()),
+                                  size=1,
+                                  p=softmax(Q_values, self.temperature))[0]
+        return possible_actions[choice].coordinates, choice
 
     def endgame(self, result):
-        pass
+        inv_history = reversed(self.history)
+        reward_multiplier = 1
+        step_t2 = next(inv_history)
+        for step_t1 in inv_history:
+            # find max of Q function on (next step in time)'s possible actions
+            max_Q = np.max([_.value for _ in self.state_space[step_t2.state_t].actions.values()])
+            # adjust value of Q on current state-action pair accordingly
+            self.state_space[step_t1.state_t].actions[step_t1.action_t].value += (
+                self.learning_rate *
+                (result * reward_multiplier  # only add result if it's final state
+                 + self.discount * max_Q  # discount for maxQ of next state in time
+                 - self.state_space[step_t1.state_t].actions[step_t1.action_t].value)
+            )
+            step_t2 = step_t1
+            # reward is 0 only in last step of the game!
+            if reward_multiplier: reward_multiplier = 0
+        self.history = []
