@@ -1,5 +1,4 @@
 import numpy as np
-from collections import defaultdict
 from tris.constants import x_coordinates, y_coordinates, starting_state, max_state_hash
 from tris.functions import state_from_hash, hash_from_state
 
@@ -27,7 +26,8 @@ class StateSpace:
     creating state spaces with the hash_all_states() function
     is a waste of memory and search time.
 
-    Turns out that because it's not a builtin, just using a dict() is faster, though.
+    Turns out that because it's not a builtin,
+    just using a dict() is faster, though. So it won't be used.
     """
 
     def __init__(self, default_action_value=0):
@@ -76,7 +76,7 @@ class Action:
     """represents an action taken by an agent.
     x,y are the coordinates where the agent
     puts their cross (or naught).
-    value might be used to store information
+    `value` might be used to store information
     about the action, according to
     the agent's implementation"""
 
@@ -174,7 +174,7 @@ class Match:
     def play(self):
         """play in a loop until game ends,
         then tell result to agents
-        finally return it: 1=win, -1=loss, 0=draw.
+        finally return it: 1=player1 win, -1=player2 winn, 0=draw.
         """
         # while game is not finished
         while self.result is None:

@@ -1,10 +1,14 @@
 import numpy as np
 
-from tris.rules import hash_all_states, StateSpace
 from tris.functions import pickle_save, pickle_load, softmax, state_from_hash, hash_from_state
+from tris.rules import hash_all_states
 
 
 class Step:
+    """represents the memory of each action the agent took.
+    state_t is original state's hash
+    action_t is landing state's hash
+    coordinates_t are the x,y position of where agent put its mark on the board."""
     def __init__(self, state_t, action_t, coordinates_t):
         self.state_t = state_t
         # the action is actually represented bu the hash of
@@ -36,7 +40,7 @@ class BaseAgent:
         save in memory and return the chosen move"""
         hashed_state = hash_from_state(game_state)
         move_coordinates, next_state = self.decide_move(hashed_state)
-        self.save_in_memory(move_coordinates, hashed_state, next_state)
+        self._save_move_in_memory(move_coordinates, hashed_state, next_state)
         return move_coordinates
 
     def endgame(self, result):
@@ -45,7 +49,7 @@ class BaseAgent:
         (result values of +1 0 -1 stand for win, draw and loss)"""
         raise NotImplementedError
 
-    def save_in_memory(self, move_coordinates, hashed_state, next_state):
+    def _save_move_in_memory(self, move_coordinates, hashed_state, next_state):
         """remember the sequence of moves from which to calculate
         the new policy"""
         self.history.append(Step(hashed_state, next_state, move_coordinates))
@@ -195,3 +199,5 @@ class QLearningAgent(BaseAgent):
             # reward is 0 only in last step of the game!
             if reward_multiplier: reward_multiplier = 0
         self.history = []
+
+

@@ -1,5 +1,4 @@
 from tqdm import tqdm
-
 from tris.rules import Match
 from tris.agents import RandomAgent, MENACEAgent
 
