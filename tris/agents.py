@@ -1,6 +1,6 @@
 import numpy as np
 
-from tris.rules import hash_all_states
+from tris.rules import hash_all_states, StateSpace
 from tris.functions import pickle_save, pickle_load, softmax, state_from_hash, hash_from_state
 
 
@@ -23,9 +23,12 @@ class Step:
 class BaseAgent:
     """implements the base logic of an agent"""
 
-    def __init__(self):
+    def __init__(self, default_action_value=0):
+        """default_action_value is the default assigned to all Action.value
+        that are automatically generated when accessing a new state in self.state_space"""
         # generate all possible game state_space.
-        self.state_space = hash_all_states()
+        self.default_action_value = default_action_value
+        self.state_space =  hash_all_states(self.default_action_value)
         self.history = []
 
     def get_move(self, game_state):
@@ -70,9 +73,9 @@ class RandomAgent(BaseAgent):
                             .state_space[hashed_game_state]
                             .actions)
         choice = np.random.choice(
-            list(
-                possible_actions.keys()),
-            size=1)[0]
+                list(
+                        possible_actions.keys()),
+                size=1)[0]
         return possible_actions[choice].coordinates, choice
 
     def endgame(self, result):
@@ -122,14 +125,14 @@ class MENACEAgent(BaseAgent):
         beads_n == how many starting beads for each action
         (loss,win,draw) == how many beads to add for each action in case of (loss,win,draw)
         """
-        super().__init__()
+        super().__init__(beads_n)
         self.change_beads = dict()
         self.change_beads[1], self.change_beads[-1], self.change_beads[0] = win, loss, draw
         self.win, self.loss, self.draw = win, loss, draw
-        for key in self.state_space:
-            possible_actions = self.state_space[key].actions
-            for action in possible_actions:
-                possible_actions[action].value = beads_n
+        # for key in self.state_space:
+        #     possible_actions = self.state_space[key].actions
+        #     for action in possible_actions:
+        #         possible_actions[action].value = beads_n
 
     def decide_move(self, hashed_state):
         # retrieve GameState object

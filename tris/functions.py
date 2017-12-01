@@ -67,3 +67,33 @@ def hash_from_state(state):
     it's the inverse of the state_from_hash"""
     # state must be 3x3 np array
     return sum([cell * (3 ** power) for power, cell in enumerate(state.flatten())])
+
+def count_visited_actions(agent, default_value):
+    """to check the percent of states and actions that
+    changed value in an angent after some training"""
+    all_actions = 0
+    visited_actions = 0
+    visited_states = 0
+    for state in agent.state_space:
+        state_is_visited = 0
+        state_actions = agent.state_space[state].actions
+        all_actions+=len(state_actions.keys())
+        for action in state_actions:
+            if state_actions[action].value != default_value:
+                visited_actions+=1
+                state_is_visited += 1
+        if state_is_visited: visited_states +=1
+    return visited_states / len(agent.state_space),\
+           visited_actions/all_actions
+
+def time_average(vector, window = 100):
+    """compute time averages for timeseries `vector`
+    `vector` must be a list/np.array of numbers
+    `window` is the averaging window
+    returns a list of numbers"""
+    avgs = []
+    vector_copy = copy(vector)
+    while vector_copy:
+        avgs.append(np.mean(vector_copy[:window]))
+        vector_copy[:window] = []
+    return avgs

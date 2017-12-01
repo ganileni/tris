@@ -1,10 +1,10 @@
 import numpy as np
-
+from collections import defaultdict
 from tris.constants import x_coordinates, y_coordinates, starting_state, max_state_hash
 from tris.functions import state_from_hash, hash_from_state
 
 
-def eval_possible_actions(state):
+def eval_possible_actions(state, default_value=0):
     """given a state, evaluate and return a dict containing
     all possible actions that can be taken from that state."""
     actions = dict()
@@ -14,17 +14,61 @@ def eval_possible_actions(state):
                 new_state = state.copy()
                 new_state[y, x] = 1  # 1 means "mine", 2 means "the opponent's"
                 # hash of new move mapped to tuple of coordinates of change
-                actions[hash_from_state(new_state)] = Action(x, y)
+                actions[hash_from_state(new_state)] = Action(x, y, value=default_value)
     return actions
 
+class StateSpace:
+    """Behaves like a defaultdict that, when accessed at a new key,
+    adds a GameState to itself. Keys are supposed to be
+    hashes of possible game states.
 
-def hash_all_states():
+    This is based on the idea that the majority of hashes
+    between 0 and 3**9 contain illegal states, and therefore
+    creating state spaces with the hash_all_states() function
+    is a waste of memory and search time.
+
+    Turns out that because it's not a builtin, just using a dict() is faster, though.
+    """
+
+    def __init__(self, default_action_value=0):
+        self.default_action_value = default_action_value
+        self._states = dict()
+
+    def __getitem__(self, item):
+        try:
+            return self._states[item]
+        # if hash of state is not in dict, generate a GameState
+        except KeyError:
+            self._states[item] = GameState(id_hash=item, default_action_value=self.default_action_value)
+            return self._states[item]
+
+    def __setitem__(self, key, value):
+        self._states[key] = value
+
+    def __iter__(self):
+        return self._states.__iter__()
+
+def is_illegal_state(hashed_state):
+    """because no player can do two consecutive moves,
+    all states where the number of Xs and Os differs
+    by more than 1 is illegal. This returns True if
+    the state hashed by `hashed_state` is illegal."""
+    state = state_from_hash(hashed_state)
+    # illegal iff abs(num(X) - num(O)) > 1
+    # X is 1 O is 2 (or viceversa)
+    return np.abs((state == 1).sum() - (state==2).sum()) > 1
+
+def hash_all_states(default_action_value=0):
     """produce a dict that maps all possible hashes
     to all possible game state_space.
     symmetries are not taken into account in this implementation."""
+
     all_states = dict()
     for hash_id in range(max_state_hash):
-        all_states[hash_id] = GameState(hash_id)
+        # if game state is illegal, shouldn't be added
+        if is_illegal_state(hash_id):
+            continue
+        all_states[hash_id] = GameState(hash_id, default_action_value)
     return all_states
 
 
@@ -44,12 +88,14 @@ class Action:
 
 class GameState:
     """represents a state of the game. contains the state as a 3x3 np.array
-    the hash of the state, and a dict of all possible actions that can be taken."""
+    the hash of the state, and a dict of all possible actions that can be taken.
+    default_value is the value argument passed to Action.__init__()
+    when calculating possible actions"""
 
-    def __init__(self, id_hash):
+    def __init__(self, id_hash, default_action_value=0):
         self.state = state_from_hash(id_hash)
         self.hash = id_hash
-        self.actions = eval_possible_actions(self.state)
+        self.actions = eval_possible_actions(self.state, default_action_value)
 
 
 class Game:
