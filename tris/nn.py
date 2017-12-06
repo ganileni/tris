@@ -4,8 +4,9 @@
 import tensorflow as tf
 import numpy as np
 from tris.agents import BaseAgent
-from tris.functions import state_from_hash, softmax
+from tris.functions import state_from_hash, softmax, chunkit
 from tris.rules import GameState
+from copy import copy
 
 
 def make_fully_connected_layer(input_layer,
@@ -68,21 +69,21 @@ def make_fully_connected_network(input_layer, architecture, activation=tf.nn.rel
     return L, W, B
 
 
-# this class will feed the data to the network
 class DataFeeder():
     """A simple class that generates random batches from a dataset.
 
-    DataFeeder(data : list):
-        Initializes a feed_data object; data is a list.
+    DataFeeder(data : list, batch_size : int):
+        Initializes a feed_data object; data is a list of ndarrays. each of these arrays
+        will be split in batches and fet as output, i.e. if `data` = [X, Y, ...],
+        then self.next_batch() will return [batch_X, batch_Y, ...].
 
-    feed_data.next_batch(size : int):
+    feed_data.next_batch():
         Returns a batch of length `size` by random sampling from the dataset.
-        The result is a list of numpy arrays with the same order as the
-        data list that was used for initialization."""
+        data is shuffled automatically before being split into batches."""
 
     def __init__(self, data: list, batch_size=100, verbose=False):
         self.data = data
-        self.dataset_size = sizes[0]
+        self.dataset_size = len(data[0])
         self.batch_size = int(batch_size)
         self.order = []
         self.epoch = -1
@@ -109,6 +110,17 @@ class DataFeeder():
         index = np.random.randint(0, self.dataset_size, size=int(size))
         return ([x[index, :] for x in self.data])
 
+class BiasedDataFeeder(DataFeeder):
+    """Generates batches from the dataset sampling with an
+    arbitrary distribution."""
+    def set_distribution(self, distribution):
+        self.distribution = distribution
+    def next_batch(self):
+        index = np.random.choice(list(range(self.dataset_size)),
+                                 size = self.batch_size,
+                                 replace=True,
+                                 p=self.distribution)
+
 
 class DeepQLearningAgent(BaseAgent):
     """Implements a deep-Q learning agent, with a Q-network for approximating
@@ -119,9 +131,10 @@ class DeepQLearningAgent(BaseAgent):
     It's an overkill for tic-tac-toe, but the point is to exercise."""
 
     def __init__(self, temperature=1, learning_rate=.1, discount=.9,
-                 penalty=.01, architecture=[9, 9], activation=tf.nn.relu,
-                 penalty_function=tf.nn.l2_loss,
-                 optimizer_algo=tf.train.RMSPropOptimizer, optimizer_params=dict()):
+                 penalty=.01, architecture=[9, 9], activation=tf.nn.sigmoid,
+                 penalty_function=tf.nn.l2_loss, iterations=10000,
+                 optimizer_algo=tf.train.RMSPropOptimizer, optimizer_params=dict(),
+                 batch_size=500):
         super().__init__()
         # boltzmann distribution temperature
         self.temperature = temperature
@@ -133,12 +146,15 @@ class DeepQLearningAgent(BaseAgent):
         # optimizer
         self.optimizer_algo = optimizer_algo
         self.optimizer_parameters = optimizer_params
+        self.batch_size = batch_size
+        self.iterations = iterations
         self.learning_rate = learning_rate  # ANN learning rate
         # last layer of ANN is one single float, Q(s,a), so add [1]
         self.architecture = architecture + [1]
         self.activation = activation
         self._make_graph()
         self._start_session()
+        self.examples = []
 
     def decide_move(self, game_state: float):
         # get GameState object from hash
@@ -153,7 +169,7 @@ class DeepQLearningAgent(BaseAgent):
 
     def endgame(self, result):
         # just save the states, the training will be done elsewhere
-        pass
+        self.examples.append((copy(self.history), result))
 
     def _make_graph(self):
         # this resets the whole default graph for tensorflow
@@ -185,13 +201,67 @@ class DeepQLearningAgent(BaseAgent):
         self.sess.run(init)
 
     def _batch(self):
+        # y for loss will be:
+        # first calculate all next_Q for the inputs
+        # next_Q = _predict_one_Q(s,a) (you need to rewrite _predict which does a GameState)
+        # y = reward + gamma * next_Q
+        # make sure examples are reshuffled!
+        state_action, q_sa, reward = self.dataset_feeder.next_batch()
+        # these two assignments to variable target are just for reshaping
+        # from (batch_size,) to (batch_size,100)
+        # rewrite in a more efficient way
+        target = q_sa + reward
+        target = np.array([[_] for _ in target])
+        self.sess.run(self.optimizer, feed_dict={self.input: state_action,
+                                                 self.observed: target,
+                                                 })
+
+    def _train_stats(self, iteration_number):
+        print(iteration_number / self.iterations)
         pass
 
-    def _stats(self):
-        pass
+    def learn(self, purge_memory = True):
+        observed_inputs = []
+        observed_reward = []
+        predicted_outputs = []
+        # process inputs and outputs to train the net
+        for example in reversed(self.examples):
+            example_match, example_reward = example
+            last_step = True
+            for step in example_match:
+                observed_inputs.append(np.hstack((state_from_hash(step.state_t),
+                                                  state_from_hash(step.action_t)))
+                                       .flatten())
+                if last_step:
+                    # because we start from last step, `last_step` will be true
+                    observed_reward.append(example_reward)
+                    # then set it to false so non-last steps get reward 0
+                    last_step = False
+                else:
+                    observed_reward.append(0)
+        # Q-network output from the inputs
+        for chunk in chunkit(observed_inputs, int(len(observed_inputs) / 20) + 1):
+            predicted_outputs.append(
+                self.sess.run(
+                    self.output, feed_dict={self.input: np.array(chunk)}))
+        predicted_outputs = self.discount * np.vstack(predicted_outputs).flatten()
+        observed_inputs = np.array(observed_inputs)
+        # possible max value in a state is 2, set all 2's to -1's
+        observed_inputs[observed_inputs == 2] = -1
+        observed_reward = np.vstack(observed_reward).flatten()
+        # now train. DataFeeder automatically reshuffles data.
+        self.dataset_feeder = DataFeeder(
+            [observed_inputs, predicted_outputs, observed_reward],
+            batch_size=self.batch_size)
+        for _ in range(self.iterations):
+            self._batch()
+            # if _ % 1000:
+            #     self._train_stats(_)
+        if purge_memory:
+            self.purge_memory()
 
-    def train(self):
-        pass
+    def purge_memory(self):
+        self.examples = []
 
     def _predict(self, game_state: GameState):
         # extract state-action pairs

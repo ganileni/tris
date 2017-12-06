@@ -1,5 +1,5 @@
 import pickle
-
+from copy import copy
 import numpy as np
 
 from tris.constants import starting_state, y_coordinates, x_coordinates
@@ -59,6 +59,18 @@ def state_from_hash(hash_id: int):
         for x in x_coordinates:
             state[x, y] = next(hash_id)
     return state.T
+
+def chunkit(seq, num):
+    """just chunks a list in sequences of `num` elements"""
+    avg = len(seq) / float(num)
+    out = []
+    last = 0.0
+
+    while last < len(seq):
+        out.append(seq[int(last):int(last + avg)])
+        last += avg
+
+    return out
 
 
 def hash_from_state(state):

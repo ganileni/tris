@@ -2,6 +2,9 @@ import numpy as np
 from tris.constants import x_coordinates, y_coordinates, starting_state, max_state_hash
 from tris.functions import state_from_hash, hash_from_state
 
+# maps 2 to -1 for changing the results representation convention
+two_to_minusone = {0: 0, 1: 1, 2: -1}
+
 
 def eval_possible_actions(state, default_value=0):
     """given a state, evaluate and return a dict containing
@@ -15,6 +18,7 @@ def eval_possible_actions(state, default_value=0):
                 # hash of new move mapped to tuple of coordinates of change
                 actions[hash_from_state(new_state)] = Action(x, y, value=default_value)
     return actions
+
 
 class StateSpace:
     """Behaves like a defaultdict that, when accessed at a new key,
@@ -48,6 +52,7 @@ class StateSpace:
     def __iter__(self):
         return self._states.__iter__()
 
+
 def is_illegal_state(hashed_state):
     """because no player can do two consecutive moves,
     all states where the number of Xs and Os differs
@@ -56,7 +61,8 @@ def is_illegal_state(hashed_state):
     state = state_from_hash(hashed_state)
     # illegal iff abs(num(X) - num(O)) > 1
     # X is 1 O is 2 (or viceversa)
-    return np.abs((state == 1).sum() - (state==2).sum()) > 1
+    return np.abs((state == 1).sum() - (state == 2).sum()) > 1
+
 
 def hash_all_states(default_action_value=0):
     """produce a dict that maps all possible hashes
@@ -193,7 +199,8 @@ class Match:
         else:  # if draw
             self.player1.endgame(0)
             self.player2.endgame(0)
-        return self.result
+        # change 2's to -1's
+        return two_to_minusone[self.result]
 
     def _next_step(self):
         """play next player move and check if game is finished"""
