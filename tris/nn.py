@@ -110,14 +110,17 @@ class DataFeeder():
         index = np.random.randint(0, self.dataset_size, size=int(size))
         return ([x[index, :] for x in self.data])
 
+
 class BiasedDataFeeder(DataFeeder):
     """Generates batches from the dataset sampling with an
     arbitrary distribution."""
+
     def set_distribution(self, distribution):
         self.distribution = distribution
+
     def next_batch(self):
         index = np.random.choice(list(range(self.dataset_size)),
-                                 size = self.batch_size,
+                                 size=self.batch_size,
                                  replace=True,
                                  p=self.distribution)
 
@@ -170,6 +173,7 @@ class DeepQLearningAgent(BaseAgent):
     def endgame(self, result):
         # just save the states, the training will be done elsewhere
         self.examples.append((copy(self.history), result))
+        self.history = []
 
     def _make_graph(self):
         # this resets the whole default graph for tensorflow
@@ -192,7 +196,7 @@ class DeepQLearningAgent(BaseAgent):
             penalty_tensor = tf.add_n([self.penalty_function(x) for x in self.weights])
             self.loss = self.loss + self.penalty * penalty_tensor
         self.optimizer = (self.optimizer_algo(learning_rate=self.learning_rate, **self.optimizer_parameters)
-                          .minimize(self.loss))
+            .minimize(self.loss))
 
     def _start_session(self):
         # start the session
@@ -220,18 +224,43 @@ class DeepQLearningAgent(BaseAgent):
         print(iteration_number / self.iterations)
         pass
 
-    def learn(self, purge_memory = True):
+    def learn(self, purge_memory=True):
         observed_inputs = []
         observed_reward = []
         predicted_outputs = []
+        next_state = []
         # process inputs and outputs to train the net
-        for example in reversed(self.examples):
-            example_match, example_reward = example
+        for episode in self.examples:
+            episode_match, example_reward = episode
             last_step = True
-            for step in example_match:
-                observed_inputs.append(np.hstack((state_from_hash(step.state_t),
-                                                  state_from_hash(step.action_t)))
+            for step in reversed(episode_match):
+                this_state = state_from_hash(step.state_t)
+                next_state.append(state_from_hash(step.action_t))
+                observed_inputs.append(np.hstack((this_state,
+                                                  this_state != next_state[-1]))
                                        .flatten())
+                # now we have to evaluate max_{s'}[Q(a',s')]
+                # let's see all possible actions two steps ahead
+                two_ahead = []
+                for possible_action in self.state_space[step.action_t].actions:
+                    possible_action = state_from_hash(possible_action)
+                    two_ahead.append(np.hstack((next_state[-1],
+                                                next_state[-1] != possible_action))
+                                     .flatten())
+                if not two_ahead:
+                    # if it's a terminal state, no two-ahead, so set the max to 0
+                    max_next_state = 0
+                else:
+                    # evaluate Q on the two-ahead actions
+                    two_ahead = np.array(two_ahead)
+                    two_ahead[two_ahead == 2] = -1
+                    max_next_state = self.sess.run(
+                        self.output,
+                        feed_dict={self.input: two_ahead}).flatten()
+
+                    # calc the maximum
+                    max_next_state = np.max(max_next_state)
+                predicted_outputs.append(max_next_state)
                 if last_step:
                     # because we start from last step, `last_step` will be true
                     observed_reward.append(example_reward)
@@ -240,10 +269,6 @@ class DeepQLearningAgent(BaseAgent):
                 else:
                     observed_reward.append(0)
         # Q-network output from the inputs
-        for chunk in chunkit(observed_inputs, int(len(observed_inputs) / 20) + 1):
-            predicted_outputs.append(
-                self.sess.run(
-                    self.output, feed_dict={self.input: np.array(chunk)}))
         predicted_outputs = self.discount * np.vstack(predicted_outputs).flatten()
         observed_inputs = np.array(observed_inputs)
         # possible max value in a state is 2, set all 2's to -1's
@@ -265,7 +290,8 @@ class DeepQLearningAgent(BaseAgent):
 
     def _predict(self, game_state: GameState):
         # extract state-action pairs
-        actions = [state_from_hash(_) for _ in game_state.actions]
+        actions = [state_from_hash(_) != game_state.state for _ in game_state.actions]
         pairs = np.array([np.hstack((game_state.state, _)).flatten() for _ in actions])
+        pairs[pairs == 2] = -1
         values = self.sess.run(self.output, feed_dict={self.input: pairs})
         return values.flatten()
