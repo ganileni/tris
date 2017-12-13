@@ -1,5 +1,5 @@
 import numpy as np
-
+from copy import copy
 from tris.functions import pickle_save, pickle_load, softmax, state_from_hash, hash_from_state
 from tris.rules import hash_all_states
 
@@ -44,8 +44,9 @@ class BaseAgent:
         return move_coordinates
 
     def endgame(self, result):
-        """when game finished, calculate new policy from result
+        """when game finished,
         and cleanup to return to "new game" agent state
+        and (maybe) calculate new policy from result
         (result values of +1 0 -1 stand for win, draw and loss)"""
         raise NotImplementedError
 
@@ -67,6 +68,18 @@ class BaseAgent:
         _dict = pickle_load(path)
         for key in _dict:
             setattr(self, key, _dict[key])
+
+    def spawn_self_player(self):
+        """returns an agent with the same methods that can be used for self-play.
+        the only thing that changes in the returned agent is self.history, which
+        is a list at a different memory address. when endgame() is called on the
+        new player, it will look into `the new self.history`.
+        note that this trick works only until endgame() is called on the
+        spawned player!"""
+        player_copy = copy(self)
+        # new history
+        player_copy.history = []
+        return player_copy
 
 
 class RandomAgent(BaseAgent):
@@ -196,7 +209,7 @@ class QLearningAgent(BaseAgent):
                  - self.state_space[step_t1.state_t].actions[step_t1.action_t].value)
             )
             step_t2 = step_t1
-            # reward is 0 only in last step of the game!
+            # reward is !=0 only in first step of the game!
             if reward_multiplier: reward_multiplier = 0
         self.history = []
 
