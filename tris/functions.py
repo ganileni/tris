@@ -1,7 +1,6 @@
 import pickle
 from copy import copy
 import numpy as np
-
 from tris.constants import starting_state, y_coordinates, x_coordinates
 
 
@@ -31,7 +30,7 @@ def softmax(X, temperature=1.0):
     """
     # div by temperature
     y = np.array(X) / float(temperature)
-    # subtract the max for numerical stability & expontentiate
+    # subtract the max for numerical stability & exponentiate
     y = np.exp(y - np.max(y))
     # take the sum & divide elementwise
     p = y / y.sum()
@@ -40,7 +39,12 @@ def softmax(X, temperature=1.0):
 
 def ternary(n: int):
     """return the representation of decimal int n
-    in base 3, as a length 9 list of ints"""
+    in base 3, as a length 9 list of ints
+    Args:
+        n: int number. must be <= 3**9
+    Returns:
+        base3: the representation of n in base 3, as a list of 9 ints.
+        """
     if not n:
         return ''.zfill(9)
     nums = []
@@ -52,7 +56,12 @@ def ternary(n: int):
 
 def state_from_hash(hash_id: int):
     """takes in a hash and outputs a 3x3 numpy array (a game state)
-    it's the inverse of hash_from_state (there is a bijection)"""
+    it's the inverse of hash_from_state (there is a bijection)
+    Args:
+        hash_id: the hash of a game state. must be an int between 0 and 3**9.
+    Returns:
+        state: the game state as a 3x3 np.array of ints (either 0, 1 or 2)
+    """
     hash_id = (x for x in ternary(hash_id))
     state = starting_state()
     for y in y_coordinates:
@@ -60,8 +69,15 @@ def state_from_hash(hash_id: int):
             state[x, y] = next(hash_id)
     return state.T
 
+
 def chunkit(seq, num):
-    """just chunks a list in sequences of `num` elements"""
+    """just chunks a list `num` parts
+    Args:
+        seq: the sequence to be chopped
+        num: the number of chunks requested
+    Returns:
+        out: a list of lists. it is of len `num`.
+    """
     avg = len(seq) / float(num)
     out = []
     last = 0.0
@@ -76,9 +92,15 @@ def chunkit(seq, num):
 def hash_from_state(state):
     """takes in a 3x3 numpy array (a game state)
     and hashes it with powers of 3. returns an int.
-    it's the inverse of the state_from_hash"""
-    # state must be 3x3 np array
+    it's the inverse of the state_from_hash
+    Args:
+        state: a 3x3 numpy array representing a tic-tac-toe game state. must contain only 0, 1, or 2's.
+    Returns:
+        hash: the hash corresponding to the state: an in between 0 and 3**9.
+        """
+    # state must be 3x3 np array, with values either 0, 1, or 2.
     return sum([cell * (3 ** power) for power, cell in enumerate(state.flatten())])
+
 
 def count_visited_actions(agent, default_value):
     """to check the percent of states and actions that
@@ -89,20 +111,28 @@ def count_visited_actions(agent, default_value):
     for state in agent.state_space:
         state_is_visited = 0
         state_actions = agent.state_space[state].actions
-        all_actions+=len(state_actions.keys())
+        all_actions += len(state_actions.keys())
         for action in state_actions:
             if state_actions[action].value != default_value:
-                visited_actions+=1
+                visited_actions += 1
                 state_is_visited += 1
-        if state_is_visited: visited_states +=1
-    return visited_states / len(agent.state_space),\
-           visited_actions/all_actions
+        if state_is_visited: visited_states += 1
+    return visited_states / len(agent.state_space), \
+           visited_actions / all_actions
 
-def time_average(vector, window = 100):
+
+def time_average(vector, window=100):
     """compute time averages for timeseries `vector`
     `vector` must be a list/np.array of numbers
     `window` is the averaging window
-    returns a list of numbers"""
+    returns a list of numbers.
+    Args:
+        vector: a list of numbers
+        window: the window of time over which to average
+    Returns:
+        avgs: a list containing the time averages.
+        """
+    # TODO: rewrite so that it applies an arbitrary function to rolling window
     avgs = []
     vector_copy = copy(vector)
     while vector_copy:

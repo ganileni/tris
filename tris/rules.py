@@ -2,7 +2,7 @@ import numpy as np
 from tris.constants import x_coordinates, y_coordinates, starting_state, max_state_hash
 from tris.functions import state_from_hash, hash_from_state
 
-# maps 2 to -1 for changing the results representation convention
+"""changes results in the form 0,1,2 to the form 0,1,-1."""
 two_to_minusone = {0: 0, 1: 1, 2: -1}
 
 
@@ -96,7 +96,12 @@ class GameState:
     """represents a state of the game. contains the state as a 3x3 np.array
     the hash of the state, and a dict of all possible actions that can be taken.
     default_value is the value argument passed to Action.__init__()
-    when calculating possible actions"""
+    when determining possible actions.
+
+    Args:
+        id_hash: hashed value of the state to be described
+        default_action_value: the value argument passed to Action.__init__() when determining possible actions.
+        """
 
     def __init__(self, id_hash, default_action_value=0):
         self.state = state_from_hash(id_hash)
@@ -105,7 +110,9 @@ class GameState:
 
 
 class Game:
-    """implements the rules of tic tac toe"""
+    """implements the rules of tic tac toe.
+    Args: (none)
+        """
 
     def __init__(self):
         self.state = starting_state()
@@ -113,21 +120,29 @@ class Game:
     @property
     def reverse_state(self):
         """returns game state with 1 and 2 swapped.
-        lazily evaluated."""
+        lazily evaluated.
+        Args: (none)
+        Returns: reversed game state
+        """
         rs = self.state.copy()
         ones, twos = rs == 1, rs == 2
         rs[ones], rs[twos] = 2, 1
         return rs
 
     def player_move(self, player: int, x: int, y: int):
-        """applies the move of `player` at coordinates `x`,`y`"""
+        """applies the move of `player` at coordinates `x`,`y`
+        Args:
+            player: what player is making the move, int (only 1 or 2)
+            """
         # make sure xy is empty and player is either 1 or 2
         assert not self.state[y, x] and player < 3
         self.state[y, x] = player
 
     def check_win(self):
         """returns 1 or 2 if player 1 or 2 won respectively
-        0 if draw, None if game not ended."""
+        0 if draw, None if game not ended.
+        Args: (none)
+        """
         # check verticals
         for x in x_coordinates:
             # for each column: if all values the same and !=0
@@ -150,7 +165,11 @@ class Game:
 
 class Match:
     """implements the logic to interface two players
-    according to the rules of tic-tac-toe"""
+    according to the rules of tic-tac-toe
+    Args:
+        player1: an instance of a BaseAgent subclass, will act as player 1
+        player2: an instance of a BaseAgent subclass, will act as player 2
+    """
 
     def __init__(self, player1, player2):
         self.game = Game()
@@ -159,7 +178,7 @@ class Match:
         self.result = None
         self.history = []
         # a random bool, determines who plays first
-        # (False -> player1)
+        # (False -> player1, True -> player2)
         # note you can alter this by changing
         # self.who_plays before calling Match.play()
         self.who_plays = np.random.rand() >= .5
@@ -181,6 +200,9 @@ class Match:
         """play in a loop until game ends,
         then tell result to agents
         finally return it: 1=player1 win, -1=player2 winn, 0=draw.
+        Args: (none)
+        Returns:
+            result: result of the game. 1=player1 win, -1=player2 winn, 0=draw.
         """
         # while game is not finished
         while self.result is None:
@@ -189,6 +211,8 @@ class Match:
         return self._assign_rewards()
 
     def _assign_rewards(self):
+        """when the game is finished, this assings the correct reward to the agents who played.
+        The rewards are: 1=win, -1=loss, 0=draw. Returns the result of the game, as 1=player1 win, -1=player2 winn, 0=draw"""
         if self.result:  # if not draw
             if self.result == 1:  # if win player1
                 self.player1.endgame(1)
@@ -206,7 +230,7 @@ class Match:
         """play next player move and check if game is finished"""
         # switch to next player
         self.who_plays = not self.who_plays
-        # ask player to move
+        # ask agent to move
         self.player_actions[self.who_plays]()
         # check for game end
         self.result = self.game.check_win()

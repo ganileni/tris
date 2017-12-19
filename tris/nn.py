@@ -4,7 +4,7 @@
 import tensorflow as tf
 import numpy as np
 from tris.agents import BaseAgent
-from tris.functions import state_from_hash, softmax, chunkit
+from tris.functions import state_from_hash, softmax
 from tris.rules import GameState
 from copy import copy
 
@@ -58,10 +58,10 @@ def make_fully_connected_network(input_layer, architecture, activation=tf.nn.rel
     B = []
     for l, layer_size in enumerate(architecture):
         a, w, b = make_fully_connected_layer(
-            L[-1],
-            layer_size,
-            activation=activation,
-            layer_name=network_name + '_layer_' + str(l + 1)
+                L[-1],
+                layer_size,
+                activation=activation,
+                layer_name=network_name + '_layer_' + str(l + 1)
         )
         L.append(a)
         W.append(w)
@@ -106,7 +106,7 @@ class DataFeeder():
         return [x[index] for x in self.data]
 
     def next_batch_random(self, size):
-        """just pick 'size' elements at random"""
+        """just pick `size` elements at random"""
         index = np.random.randint(0, self.dataset_size, size=int(size))
         return ([x[index, :] for x in self.data])
 
@@ -123,19 +123,34 @@ class BiasedDataFeeder(DataFeeder):
                                  size=self.batch_size,
                                  replace=True,
                                  p=self.distribution)
+        return ([x[index, :] for x in self.data])
 
 
 class DeepQLearningAgent(BaseAgent):
     """Implements a deep-Q learning agent, with a Q-network for approximating
     the Q function and softmax policy choice.
-
     The Q-network is a fully connected ANN with arbitrary architecture.
+    All the initialization parameters default to the best known parameters for tic-tac-toe.3
 
-    It's an overkill for tic-tac-toe, but the point is to exercise."""
+    (It's an overkill for tic-tac-toe, but the point is to exercise.)
+
+    Args:
+        temperature: temperature of the softmax distribution used to choose next state from the Q-values of alternative possibilities.
+        learning_rate: by how much to change the Q-values at each learning iteration.
+        discount: by how much to discount future rewards while training.
+        penalty_function: what kind of penalty for the parameters of the neural network, defaults to L2 loss.
+        penalty: this coefficient multiplies the penalty.
+        architecture: a list of integers describing the ANN. each element of the list corresponds to the number of neurons in subsequent layers of the fully connected ANN approximating the Q-function. output layer is automatically added by the init function.
+        activation: activation function of the neurons in the ANN.
+        optimizer_algo: what algorithm to use during training of the ANN. defaults to RMSProp.
+        optimizer_params: dict of parameters to pass to the optimizer. defaults to empty dict.
+        batch_size: batch size to train the ANN.
+        epochs: how many epochs to use in training.
+        """
 
     def __init__(self, temperature=1, learning_rate=.1, discount=.9,
                  penalty=.01, architecture=[9, 9], activation=tf.nn.sigmoid,
-                 penalty_function=tf.nn.l2_loss, iterations=10000,
+                 penalty_function=tf.nn.l2_loss, epochs=20,
                  optimizer_algo=tf.train.RMSPropOptimizer, optimizer_params=dict(),
                  batch_size=500):
         super().__init__()
@@ -150,7 +165,7 @@ class DeepQLearningAgent(BaseAgent):
         self.optimizer_algo = optimizer_algo
         self.optimizer_parameters = optimizer_params
         self.batch_size = batch_size
-        self.iterations = iterations
+        self.epochs = epochs
         self.learning_rate = learning_rate  # ANN learning rate
         # last layer of ANN is one single float, Q(s,a), so add [1]
         self.architecture = architecture + [1]
@@ -170,9 +185,10 @@ class DeepQLearningAgent(BaseAgent):
                                   p=softmax(Q_values, self.temperature))[0]
         return game_state.actions[choice].coordinates, choice
 
-    def endgame(self, result):
-        # just save the states, the training will be done elsewhere
-        self.examples.append((copy(self.history), result))
+    def endgame(self, reward):
+        # just save the observed states and rewards for the episode,
+        #  the training will be done elsewhere
+        self.examples.append((copy(self.history), reward))
         self.history = []
 
     def _make_graph(self):
@@ -184,9 +200,9 @@ class DeepQLearningAgent(BaseAgent):
         self.input = tf.placeholder(tf.float32, [None, 3 * 6])
         self.layers, self.weights, self.biases = \
             make_fully_connected_network(
-                input_layer=self.input,
-                architecture=self.architecture,
-                activation=self.activation
+                    input_layer=self.input,
+                    architecture=self.architecture,
+                    activation=self.activation
             )
         self.output = self.layers[-1]
         self.observed = tf.placeholder(tf.float32, shape=[None, 1])
@@ -206,14 +222,12 @@ class DeepQLearningAgent(BaseAgent):
 
     def _batch(self):
         # y for loss will be:
-        # first calculate all next_Q for the inputs
-        # next_Q = _predict_one_Q(s,a) (you need to rewrite _predict which does a GameState)
-        # y = reward + gamma * next_Q
-        # make sure examples are reshuffled!
+        # y = reward + discount* max_{a'}[Q(s',a')] := reward + q_sa
+        # state_action is the (s,a) pair to be shown as input to the ANN
         state_action, q_sa, reward = self.dataset_feeder.next_batch()
         # these two assignments to variable target are just for reshaping
         # from (batch_size,) to (batch_size,100)
-        # rewrite in a more efficient way
+        # TODO: rewrite in a more efficient way
         target = q_sa + reward
         target = np.array([[_] for _ in target])
         self.sess.run(self.optimizer, feed_dict={self.input: state_action,
@@ -225,20 +239,46 @@ class DeepQLearningAgent(BaseAgent):
         pass
 
     def learn(self, purge_memory=True):
+        observed_inputs, observed_reward, predicted_outputs, distance_from_reward = self.preprocess_experience()
+        # now train. DataFeeder automatically reshuffles data.
+        self.dataset_feeder = DataFeeder(
+                [observed_inputs, predicted_outputs, observed_reward],
+                batch_size=self.batch_size)
+        # determine number of iterations:
+        self.iterations = int(self.epochs * len(observed_inputs) / self.batch_size)
+        for _ in range(self.iterations):
+            self._batch()
+            # TODO: write a function that computes and prints training stats
+            # if _ % 1000:
+            #     self._train_stats(_)
+        if purge_memory:
+            self.purge_memory()
+
+    def preprocess_experience(self):
+        """processes the experience of the agent which is found in self.examples
+        so that it can be fed to the Q function approximator
+        returns:
+            observed_inputs: the observed state and action taken
+            observed_reward: reward immediately observed after the action
+            predicted_output: the Q-value as predicted by the approximator
+            distance_from_reward : how many timesteps before the reward
+             """
         observed_inputs = []
         observed_reward = []
         predicted_outputs = []
+        distance_from_reward = []
         next_state = []
         # process inputs and outputs to train the net
         for episode in self.examples:
             episode_match, example_reward = episode
             last_step = True
-            for step in reversed(episode_match):
+            for n, step in enumerate(reversed(episode_match)):
                 this_state = state_from_hash(step.state_t)
                 next_state.append(state_from_hash(step.action_t))
                 observed_inputs.append(np.hstack((this_state,
                                                   this_state != next_state[-1]))
                                        .flatten())
+                distance_from_reward.append(n)
                 # now we have to evaluate max_{s'}[Q(a',s')]
                 # let's see all possible actions two steps ahead
                 two_ahead = []
@@ -255,8 +295,8 @@ class DeepQLearningAgent(BaseAgent):
                     two_ahead = np.array(two_ahead)
                     two_ahead[two_ahead == 2] = -1
                     max_next_state = self.sess.run(
-                        self.output,
-                        feed_dict={self.input: two_ahead}).flatten()
+                            self.output,
+                            feed_dict={self.input: two_ahead}).flatten()
 
                     # calc the maximum
                     max_next_state = np.max(max_next_state)
@@ -274,16 +314,7 @@ class DeepQLearningAgent(BaseAgent):
         # possible max value in a state is 2, set all 2's to -1's
         observed_inputs[observed_inputs == 2] = -1
         observed_reward = np.vstack(observed_reward).flatten()
-        # now train. DataFeeder automatically reshuffles data.
-        self.dataset_feeder = DataFeeder(
-            [observed_inputs, predicted_outputs, observed_reward],
-            batch_size=self.batch_size)
-        for _ in range(self.iterations):
-            self._batch()
-            # if _ % 1000:
-            #     self._train_stats(_)
-        if purge_memory:
-            self.purge_memory()
+        return observed_inputs, observed_reward, predicted_outputs, distance_from_reward
 
     def purge_memory(self):
         self.examples = []

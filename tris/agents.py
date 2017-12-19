@@ -11,6 +11,7 @@ class Step:
         state_t: starting state's hash
         action_t: landing state's hash
         coordinates_t: the x,y position of where agent put its mark on the board."""
+
     def __init__(self, state_t, action_t, coordinates_t):
         self.state_t = state_t
         # the action is actually represented bu the hash of
@@ -35,7 +36,7 @@ class BaseAgent:
     def __init__(self, default_action_value=0):
         # generate all possible game state_space.
         self.default_action_value = default_action_value
-        self.state_space =  hash_all_states(self.default_action_value)
+        self.state_space = hash_all_states(self.default_action_value)
         self.history = []
 
     def get_move(self, game_state):
@@ -118,12 +119,12 @@ class RandomAgent(BaseAgent):
 
     def decide_move(self, hashed_game_state):
         possible_actions = (self
-                            .state_space[hashed_game_state]
-                            .actions)
+            .state_space[hashed_game_state]
+            .actions)
         choice = np.random.choice(
-                list(
-                        possible_actions.keys()),
-                size=1)[0]
+            list(
+                possible_actions.keys()),
+            size=1)[0]
         return possible_actions[choice].coordinates, choice
 
     def endgame(self, reward):
@@ -253,15 +254,14 @@ class QLearningAgent(BaseAgent):
             # find max of Q function on (next step in time)'s possible actions
             max_Q = np.max([_.value for _ in self.state_space[step_t2.state_t].actions.values()])
             # adjust value of Q on current state-action pair accordingly
+            # i.e. Q(s, a) = Q(s, a) + learning_rate * (reward_multiplier*r + discount*max_{a'}[Q(s',a')] - Q(s,a))
             self.state_space[step_t1.state_t].actions[step_t1.action_t].value += (
-                self.learning_rate *
-                (reward * reward_multiplier  # only add result if it's final state
-                 + self.discount * max_Q  # discount for maxQ of next state in time
-                 - self.state_space[step_t1.state_t].actions[step_t1.action_t].value)
+                    self.learning_rate *
+                    (reward * reward_multiplier  # only add result if it's final state
+                     + self.discount * max_Q  # discount for maxQ of next state in time
+                     - self.state_space[step_t1.state_t].actions[step_t1.action_t].value)
             )
             step_t2 = step_t1
             # reward is !=0 only in first step of the game!
             if reward_multiplier: reward_multiplier = 0
         self.history = []
-
-
