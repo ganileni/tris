@@ -152,13 +152,25 @@ class HumanAgent(BaseAgent):
             print('\t'.join([str(rowname)] + [self.translate[_] for _ in row]))
         print('y\n')
         # get input from player, loop until a legal move is input
-        move_unknown = True
-        while move_unknown:
-            x = int(input('What x? '))
-            y = int(input('What y? '))
-            if not state[y, x]:
-                move_unknown = False
-            else:
+        while True:
+            while True:
+                try:
+                    x = int(input('What x? '))
+                    break
+                except ValueError:
+                    pass
+            while True:
+                try:
+                    y = int(input('What y? '))
+                    break
+                except ValueError:
+                    pass
+            try:
+                if not state[y, x]:
+                    break
+                else:
+                    print("illegal move!")
+            except IndexError:
                 print("illegal move!")
         return (x, y), None
 
@@ -205,7 +217,8 @@ class MENACEAgent(BaseAgent):
         # number of beads per action will be proportional to probability of choice
         beads = np.array([current_state.actions[_].value for _ in actions])
         # normalize probabilities
-        beads = beads / beads.sum()
+        try: beads = beads / beads.sum()
+        except RuntimeWarning: beads = 0 #in case you're attempting divide by zero
         choice = np.random.choice(actions, size=1, p=beads)[0]
         return current_state.actions[choice].coordinates, choice
 
