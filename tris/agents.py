@@ -89,13 +89,16 @@ class BaseAgent:
             """
         pickle_save(self.__dict__, path)
 
-    def load_agent(self, path):
+    @classmethod
+    def load_agent(cls, path):
         """Load an agent from disk.
         Args:
             path: path for the pickle file that contains the agent. If additional files are needed, they will be looked for in the same directory."""
         _dict = pickle_load(path)
+        agent = cls()
         for key in _dict:
-            setattr(self, key, _dict[key])
+            setattr(agent, key, _dict[key])
+        return agent
 
     def spawn_self_player(self):
         """Returns an agent with the same methods that can be used for self-play.

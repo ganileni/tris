@@ -4,10 +4,11 @@
 import tensorflow as tf
 import numpy as np
 from tris.agents import BaseAgent
-from tris.functions import state_from_hash, softmax
+from tris.functions import state_from_hash, softmax, pickle_save, pickle_load
 from tris.rules import GameState
 from copy import copy
 
+CHECKPOINT_EXTENSION = '.ckpt'
 
 def make_fully_connected_layer(input_layer,
                                layer_size,
@@ -154,24 +155,36 @@ class DeepQLearningAgent(BaseAgent):
                  optimizer_algo=tf.train.RMSPropOptimizer, optimizer_params=dict(),
                  batch_size=500):
         super().__init__()
+        # this dict contains the parameters necessary to save the agent to disk
+        self.save_attrs = dict()
         # boltzmann distribution temperature
-        self.temperature = temperature
+        self.save_attrs['temperature'] = temperature
         # time discount for future rewards
-        self.discount = discount
-        # for regularization
-        self.penalty = penalty
-        self.penalty_function = penalty_function
-        # optimizer
-        self.optimizer_algo = optimizer_algo
-        self.optimizer_parameters = optimizer_params
-        self.batch_size = batch_size
-        self.epochs = epochs
-        self.learning_rate = learning_rate  # ANN learning rate
-        # last layer of ANN is one single float, Q(s,a), so add [1]
-        self.architecture = architecture + [1]
-        self.activation = activation
+        self.save_attrs['discount'] = discount
+        # for ANN regularization
+        self.save_attrs['penalty'] = penalty
+        self.save_attrs['penalty_function'] = penalty_function
+        # ANN SGD optimizer
+        self.save_attrs['optimizer_algo'] = optimizer_algo
+        self.save_attrs['optimizer_params'] = optimizer_params
+        self.save_attrs['batch_size'] = batch_size
+        self.save_attrs['epochs'] = epochs
+        # ANN learning rate
+        self.save_attrs['learning_rate'] = learning_rate
+        self.save_attrs['architecture'] = architecture
+        self.save_attrs['activation'] = activation
+        # put all the attributes in the agent object
+        for key in self.save_attrs:
+            if key == 'architecture':
+                # last layer of ANN is one single float, Q(s,a),
+                # so we need to add [1] to the architecture
+                setattr(self, key, self.save_attrs[key] + [1])
+            else:
+                setattr(self, key, self.save_attrs[key])
+        # generate ANN graph in tensorflow
         self._make_graph()
         self._start_session()
+        # memory of past games goes here: each game is a list of Steps
         self.examples = []
 
     def decide_move(self, game_state: float):
@@ -211,7 +224,7 @@ class DeepQLearningAgent(BaseAgent):
         if self.penalty:
             penalty_tensor = tf.add_n([self.penalty_function(x) for x in self.weights])
             self.loss = self.loss + self.penalty * penalty_tensor
-        self.optimizer = (self.optimizer_algo(learning_rate=self.learning_rate, **self.optimizer_parameters)
+        self.optimizer = (self.optimizer_algo(learning_rate=self.learning_rate, **self.optimizer_params)
             .minimize(self.loss))
 
     def _start_session(self):
@@ -226,7 +239,7 @@ class DeepQLearningAgent(BaseAgent):
         # state_action is the (s,a) pair to be shown as input to the ANN
         state_action, q_sa, reward = self.dataset_feeder.next_batch()
         # these two assignments to variable target are just for reshaping
-        # from (batch_size,) to (batch_size,100)
+        # from (batch_size,) to (batch_size,1)
         # TODO: rewrite in a more efficient way
         target = q_sa + reward
         target = np.array([[_] for _ in target])
@@ -239,7 +252,7 @@ class DeepQLearningAgent(BaseAgent):
         pass
 
     def learn(self, purge_memory=True):
-        observed_inputs, observed_reward, predicted_outputs, distance_from_reward = self.preprocess_experience()
+        observed_inputs, observed_reward, predicted_outputs, distance_from_reward = self._preprocess_experience()
         # now train. DataFeeder automatically reshuffles data.
         self.dataset_feeder = DataFeeder(
                 [observed_inputs, predicted_outputs, observed_reward],
@@ -254,7 +267,7 @@ class DeepQLearningAgent(BaseAgent):
         if purge_memory:
             self.purge_memory()
 
-    def preprocess_experience(self):
+    def _preprocess_experience(self):
         """processes the experience of the agent which is found in self.examples
         so that it can be fed to the Q function approximator
         returns:
@@ -326,3 +339,26 @@ class DeepQLearningAgent(BaseAgent):
         pairs[pairs == 2] = -1
         values = self.sess.run(self.output, feed_dict={self.input: pairs})
         return values.flatten()
+
+    def save_agent(self, path):
+        """save functionality is different in case of agents that contain ANN's"""
+        # save all parameters needed to reconstruct the agent
+        pickle_save(self.save_attrs, path)
+        # initialize tensorflow saver
+        saver = tf.train.Saver(var_list=self._variables_to_save())
+        saver.save(self.sess, path + CHECKPOINT_EXTENSION)
+
+    def _variables_to_save(self):
+        """generate a list of ANN variables to be saved to disk (in dict form, tensorflow-readable)"""
+        save_vars = self.weights + self.biases
+        save_names = [_.name for _ in save_vars]
+        save_dict = {name: var for name, var in zip(save_names, save_vars)}
+        return save_dict
+
+    @classmethod
+    def load_agent(cls, path):
+        save_attrs = pickle_load(path)
+        agent = cls(**save_attrs)
+        saver = tf.train.Saver(var_list=agent._variables_to_save())
+        saver.restore(agent.sess, path + CHECKPOINT_EXTENSION)
+        return agent
