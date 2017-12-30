@@ -10,6 +10,7 @@ from copy import copy
 
 CHECKPOINT_EXTENSION = '.ckpt'
 
+
 def make_fully_connected_layer(input_layer,
                                layer_size,
                                activation=tf.nn.relu,
@@ -139,6 +140,8 @@ class DeepQLearningAgent(BaseAgent):
         temperature: temperature of the softmax distribution used to choose next state from the Q-values of alternative possibilities.
         learning_rate: by how much to change the Q-values at each learning iteration.
         discount: by how much to discount future rewards while training.
+        policy: if 'softmax' (default behavior) the policy picks actions using a softmax distribution (and the epsilon parameter is ignored). if 'epsilon', epsilon-greedy policy (the temperature parameter is ignored)
+        epsilon: the epsilon parameter for the epsilon-greedy policy: pick a random action epsilon % of the times (between 0 and 1)
         penalty_function: what kind of penalty for the parameters of the neural network, defaults to L2 loss.
         penalty: this coefficient multiplies the penalty.
         architecture: a list of integers describing the ANN. each element of the list corresponds to the number of neurons in subsequent layers of the fully connected ANN approximating the Q-function. output layer is automatically added by the init function.
@@ -150,6 +153,7 @@ class DeepQLearningAgent(BaseAgent):
         """
 
     def __init__(self, temperature=1, learning_rate=.1, discount=.9,
+                 policy='softmax', epsilon=0.1,
                  penalty=.01, architecture=[9, 9], activation=tf.nn.sigmoid,
                  penalty_function=tf.nn.l2_loss, epochs=20,
                  optimizer_algo=tf.train.RMSPropOptimizer, optimizer_params=dict(),
@@ -173,6 +177,12 @@ class DeepQLearningAgent(BaseAgent):
         self.save_attrs['learning_rate'] = learning_rate
         self.save_attrs['architecture'] = architecture
         self.save_attrs['activation'] = activation
+        self.save_attrs['epsilon'] = epsilon
+        self.save_attrs['policy '] = policy
+        if policy == 'softmax':
+            self.decision = self._decision_softmax
+        elif policy == 'epsilon':
+            self.decision = self._decision_epsilon
         # put all the attributes in the agent object
         for key in self.save_attrs:
             if key == 'architecture':
@@ -193,10 +203,24 @@ class DeepQLearningAgent(BaseAgent):
         # evaluate Q-values with ANN
         Q_values = self._predict(game_state)
         # softmax choice
+        choice = self._decision(Q_values, game_state)
+        return game_state.actions[choice].coordinates, choice
+
+    def _decision_softmax(self, Q_values, game_state):
         choice = np.random.choice(list(game_state.actions.keys()),
                                   size=1,
                                   p=softmax(Q_values, self.temperature))[0]
-        return game_state.actions[choice].coordinates, choice
+        return choice
+
+    def _decision_epsilon(self, Q_values, game_state):
+        # epsilon % of the times random
+        if np.random.uniform() < self.epsilon:
+            choice = np.random.choice(list(game_state.actions.keys()),
+                                      size=1,
+                                      )[0]
+        else:
+            choice = list(game_state.actions.keys())[np.argmax(Q_values)]
+        return choice
 
     def endgame(self, reward):
         # just save the observed states and rewards for the episode,
