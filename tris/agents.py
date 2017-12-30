@@ -55,7 +55,8 @@ class BaseAgent:
         return move_coordinates
 
     def endgame(self, reward):
-        """Called when the game is finished, the agent saves the game in memory, does cleanup to return to "new game" state, and (maybe) updates policy. (result values of +1 0 -1 stand for win, draw and loss).
+        """Called when the game is finished, the agent saves the game in memory, does cleanup to return to "new game"
+        state, and (maybe) updates policy. (result values of +1 0 -1 stand for win, draw and loss).
 
         Args:
             reward(float): the reward the agent got at the end of the game.
@@ -74,6 +75,7 @@ class BaseAgent:
 
     def decide_move(self, hashed_game_state):
         """Decide the move based on current game state.
+
         Args:
             game_state(int): hashed game state
 
@@ -85,6 +87,7 @@ class BaseAgent:
 
     def save_agent(self, path):
         """Save agent to disk.
+
         Args:
             path: path for the pickle file that will contain the agent. If additional files are needed, they will be in the same directory.
             """
@@ -93,6 +96,7 @@ class BaseAgent:
     @classmethod
     def load_agent(cls, path):
         """Load an agent from disk.
+
         Args:
             path: path for the pickle file that contains the agent. If additional files are needed, they will be looked for in the same directory."""
         _dict = pickle_load(path)
@@ -110,10 +114,15 @@ class BaseAgent:
         Returns:
             agent: an agent that can be used for self-play (must be respawned after calling `agent.endgame()`)
 
-        Note: as is clear in the code, the only thing that changes in the returned agent is `agent.history`, which is a new list at a different memory address. `when endgame()` is called on the new spawned agent, it will look into `the new self.history` to memorize or update the policy of the original agent. Note that this trick works only until `agent.endgame()` is called, because `agent.endgame()` should reset `agent.history` when it is done.
+        Note: as is clear in the code, the only thing that changes in the returned agent is `agent.history`,
+        which is a new list at a different memory address. when `BaseAgent.endgame()` is called on the new spawned
+        agent, it will look into `the new self.history` to memorize or update the policy of the original agent. Note
+        that this trick works only until `BaseAgent.endgame()` is called, because `BaseAgent.endgame()` resets
+        `self.history` when it is done.
         """
+        # shallow copy
         player_copy = copy(self)
-        # new history
+        # history at a new memory address
         player_copy.history = []
         return player_copy
 
@@ -144,7 +153,8 @@ class RandomAgent(BaseAgent):
 
 
 class HumanAgent(BaseAgent):
-    """Implements the interface for a human to play vs an agent. When `HumanAgent.decide_move()` is called, the program prompts the user a move."""
+    """Implements the interface for a human to play vs an agent. When `HumanAgent.decide_move()` is called,
+    the program prompts the user a move. """
 
     def __init__(self):
         super().__init__()
@@ -155,6 +165,7 @@ class HumanAgent(BaseAgent):
     def decide_move(self, hashed_game_state):
         """Print the game state and ask for action."""
         state = state_from_hash(hashed_game_state)
+        # TODO -- refactor this printing into an external function
         print("\n\n\t0\t1\t2\tx")
         for row, rowname in zip(state, range(3)):
             print('\t'.join([str(rowname)] + [self.translate[_] for _ in row]))
@@ -192,7 +203,8 @@ class MENACEAgent(BaseAgent):
     """Reproduces the Machine Educable Noughts And Crosses Engine (MENACE) agent, defined in
     Michie, Donald. "Trial and error." Science Survey, Part 2 (1961): 129-145.
 
-    Symmetries of the game are not considered, all possible states are represented.
+    Differently from the original MENACE, because RAM is cheap, symmetries of the game are not considered,
+    all possible game states are represented.
 
     For a summary, refer to:
     http://chalkdustmagazine.com/features/menace-machine-educable-noughts-crosses-engine/
@@ -248,7 +260,8 @@ class MENACEAgent(BaseAgent):
 class QLearningAgent(BaseAgent):
     """Agent based on a Q-learning rule for learning, and softmax policy.
 
-    Remember, low temperature == low exploration. The parameters of the agent should be changed during training to balance exploration and exploitation.
+    Remember, low temperature == low exploration. The parameters of the agent should be changed during training to
+    balance exploration and exploitation.
 
     Args:
         temperature: temperature of the softmax distribution used to choose next state from the Q-values of alternative possibilities.
@@ -259,7 +272,7 @@ class QLearningAgent(BaseAgent):
 
     """
 
-    def __init__(self, temperature=1, learning_rate=.1, discount=.9, policy = 'softmax', epsilon = 0.1):
+    def __init__(self, temperature=1, learning_rate=.1, discount=.9, policy='softmax', epsilon=0.1):
         super().__init__()
         self.temperature = temperature
         self.learning_rate = learning_rate
@@ -317,7 +330,7 @@ class QLearningAgent(BaseAgent):
         self.history = []
 
 
-def play_vs_human(agent_instance, agent_name = 'Artificial'):
+def play_vs_human(agent_instance, agent_name='Artificial'):
     """let a human play a game against an instance of an agent"""
     human = HumanAgent()
     match = Match(human, agent_instance)

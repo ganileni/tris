@@ -8,6 +8,7 @@ import numpy as np
 
 
 def create_dir(path):
+    """just a small routine that makes a directory if it doesn't exist"""
     try:
         mkdir(dirname(path))
     except FileExistsError:
@@ -15,10 +16,12 @@ def create_dir(path):
 
 
 def train_Random(random_description):
+    """train proedure for RandomAgent."""
     pass
 
 
 def train_MENACE(menace_description):
+    """train proedure for MENACEAgent."""
     menace = MENACEAgent()
     player2 = RandomAgent()
     match_results = []
@@ -31,6 +34,7 @@ def train_MENACE(menace_description):
 
 
 def train_QLearning(qlearning_descritpion):
+    """train proedure for QLearningAgent."""
     # TODO -- look into optimal exploration/exploitation balance
     learning_rate = 0.1
     discount = 0.9
@@ -56,6 +60,7 @@ def train_QLearning(qlearning_descritpion):
 
 
 def train_DeepQLearning(deepq_learning_description):
+    """train proedure for DeepQLearningAgent."""
     # TODO -- look into optimal exploration/exploitation balance
     nn_epochs = 40
     games = np.log10(2500)

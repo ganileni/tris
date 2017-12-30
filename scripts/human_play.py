@@ -1,3 +1,5 @@
+"""This is a small script that lets a human play against a trained agent."""
+
 from scripts.agent_settings import menace_description, qlearning_description, random_description, \
     deepq_learning_description
 from tris.agents import play_vs_human

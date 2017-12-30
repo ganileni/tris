@@ -2,13 +2,13 @@ import numpy as np
 from tris.constants import x_coordinates, y_coordinates, starting_state, max_state_hash
 from tris.functions import state_from_hash, hash_from_state
 
+# TODO -- move to tris.constants
 """changes results in the form 0,1,2 to the form 0,1,-1."""
 two_to_minusone = {0: 0, 1: 1, 2: -1}
 
 
 def eval_possible_actions(state, default_value=0):
-    """given a state, evaluate and return a dict containing
-    all possible actions that can be taken from that state."""
+    """given a state, evaluate and return a dict containing all possible actions that can be taken from that state."""
     actions = dict()
     for y in y_coordinates:
         for x in x_coordinates:
@@ -21,17 +21,13 @@ def eval_possible_actions(state, default_value=0):
 
 
 class StateSpace:
-    """Behaves like a defaultdict that, when accessed at a new key,
-    adds a GameState to itself. Keys are supposed to be
-    hashes of possible game states.
+    """Behaves like a defaultdict that, when accessed at a new key, adds a GameState to itself. Keys are supposed to
+    be hashes of possible game states.
 
-    This is based on the idea that the majority of hashes
-    between 0 and 3**9 contain illegal states, and therefore
-    creating state spaces with the hash_all_states() function
-    is a waste of memory and search time.
+    This is based on the idea that the majority of hashes between 0 and 3**9 contain illegal states, and therefore
+    creating state spaces with the hash_all_states() function is a waste of memory and search time.
 
-    Turns out that because it's not a builtin,
-    just using a dict() is faster, though. So it won't be used.
+    NOTE: Turns out that, because it's not a builtin, just using a dict() is faster. So it won't be used.
     """
 
     def __init__(self, default_action_value=0):
@@ -54,10 +50,9 @@ class StateSpace:
 
 
 def is_illegal_state(hashed_state):
-    """because no player can do two consecutive moves,
-    all states where the number of Xs and Os differs
-    by more than 1 is illegal. This returns True if
-    the state hashed by `hashed_state` is illegal."""
+    """because no player can do two consecutive moves, all states where the number of Xs and Os differs by more than
+    1 is illegal. This returns True if the state hashed by `hashed_state` is illegal. the state hashed by
+    `hashed_state` is illegal. """
     state = state_from_hash(hashed_state)
     # illegal iff abs(num(X) - num(O)) > 1
     # X is 1 O is 2 (or viceversa)
@@ -65,9 +60,8 @@ def is_illegal_state(hashed_state):
 
 
 def hash_all_states(default_action_value=0):
-    """produce a dict that maps all possible hashes
-    to all possible game state_space.
-    symmetries are not taken into account in this implementation."""
+    """produce a dict that maps all possible hashes to all possible game state_space. symmetries are not taken into
+    account in this implementation. """
 
     all_states = dict()
     for hash_id in range(max_state_hash):
@@ -79,12 +73,8 @@ def hash_all_states(default_action_value=0):
 
 
 class Action:
-    """represents an action taken by an agent.
-    x,y are the coordinates where the agent
-    puts their cross (or naught).
-    `value` might be used to store information
-    about the action, according to
-    the agent's implementation"""
+    """represents an action taken by an agent. `x,y` are the coordinates where the agent puts their cross (or naught).
+    `value` might be used to store information about the action, according to the agent's implementation """
 
     def __init__(self, x, y, value=0):
         self.coordinates = (x, y)
@@ -93,10 +83,9 @@ class Action:
 
 
 class GameState:
-    """represents a state of the game. contains the state as a 3x3 np.array
-    the hash of the state, and a dict of all possible actions that can be taken.
-    default_value is the value argument passed to Action.__init__()
-    when determining possible actions.
+    """represents a state of the game. contains the state as a 3x3 np.array the hash of the state, and a dict of all
+    possible actions that can be taken. default_value is the value argument passed to Action.__init__() when
+    determining possible actions.
 
     Args:
         id_hash: hashed value of the state to be described
@@ -139,8 +128,7 @@ class Game:
         self.state[y, x] = player
 
     def check_win(self):
-        """returns 1 or 2 if player 1 or 2 won respectively
-        0 if draw, None if game not ended.
+        """returns 1 or 2 if player 1 or 2 won respectively 0 if draw, None if game not ended.
         Args: (none)
         """
         # check verticals
@@ -164,8 +152,7 @@ class Game:
 
 
 class Match:
-    """implements the logic to interface two players
-    according to the rules of tic-tac-toe
+    """implements the logic to interface two players according to the rules of tic-tac-toe
     Args:
         player1: an instance of a BaseAgent subclass, will act as player 1
         player2: an instance of a BaseAgent subclass, will act as player 2
@@ -197,9 +184,9 @@ class Match:
         self.game.player_move(player=2, x=move[0], y=move[1])
 
     def play(self):
-        """play in a loop until game ends,
-        then tell result to agents
-        finally return it: 1=player1 win, -1=player2 winn, 0=draw.
+        """play in a loop until game ends, then tell result to agents . Fnally return it: 1=player1 win, -1=player2
+        win, 0=draw.
+
         Args: (none)
         Returns:
             result: result of the game. 1=player1 win, -1=player2 winn, 0=draw.
@@ -211,8 +198,8 @@ class Match:
         return self._assign_rewards()
 
     def _assign_rewards(self):
-        """when the game is finished, this assings the correct reward to the agents who played.
-        The rewards are: 1=win, -1=loss, 0=draw. Returns the result of the game, as 1=player1 win, -1=player2 winn, 0=draw"""
+        """when the game is finished, this assings the correct reward to the agents who played. The rewards are:
+        1=win, -1=loss, 0=draw. Returns the result of the game, as 1=player1 win, -1=player2 win, 0=draw """
         if self.result:  # if not draw
             if self.result == 1:  # if win player1
                 self.player1.endgame(1)

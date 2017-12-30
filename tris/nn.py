@@ -1,5 +1,5 @@
-# Q-network learning agent is implemented here so that this is the only file
-# that contains tensorflow as a dependency.
+"""deep-Q learning agent and all classes that depend on tensorflow are implemented here so that this is the only
+file that contains tensorflow as a dependency. """
 
 import tensorflow as tf
 import numpy as np
@@ -8,6 +8,7 @@ from tris.functions import state_from_hash, softmax, pickle_save, pickle_load
 from tris.rules import GameState
 from copy import copy
 
+# TODO -- move to tris.constants
 CHECKPOINT_EXTENSION = '.ckpt'
 
 
@@ -74,14 +75,12 @@ def make_fully_connected_network(input_layer, architecture, activation=tf.nn.rel
 class DataFeeder():
     """A simple class that generates random batches from a dataset.
 
-    DataFeeder(data : list, batch_size : int):
-        Initializes a feed_data object; data is a list of ndarrays. each of these arrays
-        will be split in batches and fet as output, i.e. if `data` = [X, Y, ...],
-        then self.next_batch() will return [batch_X, batch_Y, ...].
+    DataFeeder(data : list, batch_size : int): Initializes a feed_data object; data is a list of ndarrays. each of
+    these arrays will be split in batches and fet as output, i.e. if `data` = [X, Y, ...], then self.next_batch()
+    will return [batch_X, batch_Y, ...].
 
-    feed_data.next_batch():
-        Returns a batch of length `size` by random sampling from the dataset.
-        data is shuffled automatically before being split into batches."""
+    feed_data.next_batch(): Returns a batch of length `size` by random sampling from the dataset. data is shuffled
+    automatically before being split into batches. """
 
     def __init__(self, data: list, batch_size=100, verbose=False):
         self.data = data
@@ -114,8 +113,7 @@ class DataFeeder():
 
 
 class BiasedDataFeeder(DataFeeder):
-    """Generates batches from the dataset sampling with an
-    arbitrary distribution."""
+    """Generates batches from the dataset sampling with an arbitrary distribution."""
 
     def set_distribution(self, distribution):
         self.distribution = distribution
@@ -129,12 +127,11 @@ class BiasedDataFeeder(DataFeeder):
 
 
 class DeepQLearningAgent(BaseAgent):
-    """Implements a deep-Q learning agent, with a Q-network for approximating
-    the Q function and softmax policy choice.
-    The Q-network is a fully connected ANN with arbitrary architecture.
-    All the initialization parameters default to the best known parameters for tic-tac-toe.3
+    """Implements a deep-Q learning agent, with a Q-network for approximating the Q function and softmax policy
+    choice. The Q-network is a fully connected ANN with arbitrary architecture. All the initialization parameters
+    default to the best known parameters for tic-tac-toe.
 
-    (It's an overkill for tic-tac-toe, but the point is to exercise.)
+    (It's an overkill for tic-tac-toe, this is an exercise.)
 
     Args:
         temperature: temperature of the softmax distribution used to choose next state from the Q-values of alternative possibilities.
@@ -229,6 +226,7 @@ class DeepQLearningAgent(BaseAgent):
         self.history = []
 
     def _make_graph(self):
+        """builds the tensorflow graph for the ANN approximator"""
         # this resets the whole default graph for tensorflow
         tf.reset_default_graph()
         # inputs/outputs:
@@ -276,6 +274,7 @@ class DeepQLearningAgent(BaseAgent):
         pass
 
     def learn(self, purge_memory=True):
+        """performs learning from the experience saved in self.examples"""
         observed_inputs, observed_reward, predicted_outputs, distance_from_reward = self._preprocess_experience()
         # now train. DataFeeder automatically reshuffles data.
         self.dataset_feeder = DataFeeder(
@@ -285,15 +284,16 @@ class DeepQLearningAgent(BaseAgent):
         self.iterations = int(self.epochs * len(observed_inputs) / self.batch_size)
         for _ in range(self.iterations):
             self._batch()
-            # TODO: write a function that computes and prints training stats
+            # TODO: write a method that computes and prints training stats
             # if _ % 1000:
             #     self._train_stats(_)
         if purge_memory:
             self.purge_memory()
 
     def _preprocess_experience(self):
-        """processes the experience of the agent which is found in self.examples
-        so that it can be fed to the Q function approximator
+        """processes the experience of the agent which is found in self.examples so that it can be fed to the Q
+        function approximator.
+
         returns:
             observed_inputs: the observed state and action taken
             observed_reward: reward immediately observed after the action
@@ -381,8 +381,11 @@ class DeepQLearningAgent(BaseAgent):
 
     @classmethod
     def load_agent(cls, path):
+        # this is different from other agents because first we have to create an agent with random policy from the
+        # saved parameters. this will create a tensorflow graph with randomly initialized parameters.
         save_attrs = pickle_load(path)
         agent = cls(**save_attrs)
+        # then we have to load the ANN parameters into the tensorflow graph
         saver = tf.train.Saver(var_list=agent._variables_to_save())
         saver.restore(agent.sess, path + CHECKPOINT_EXTENSION)
         return agent

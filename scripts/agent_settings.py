@@ -1,3 +1,6 @@
+"""these are settings for agents used by the human_play.py script and training procedures found in train_agents.py.
+The settings for each agent are stored in a class called AgentDescription."""
+
 from scripts.constants import SAVE_DIR, PICKLE_EXTENSION
 from scripts.train_agents import train_MENACE, train_QLearning, train_Random, train_DeepQLearning
 from tris.agents import MENACEAgent, QLearningAgent, RandomAgent

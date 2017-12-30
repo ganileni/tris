@@ -16,7 +16,7 @@ def pickle_load(filename):
 
 def softmax(X, temperature=1.0):
     """
-    adapted from: https://nolanbconaway.github.io/blog/2017/softmax-numpy
+    adapted from: https://nolanbconaway.github.io/blog/2017/softmax-numpy.
     credit where is due.
 
     Compute the softmax of each element of X.
@@ -38,8 +38,8 @@ def softmax(X, temperature=1.0):
 
 
 def ternary(n: int):
-    """return the representation of decimal int n
-    in base 3, as a length 9 list of ints
+    """return the representation of decimal int n in base 3, as a length 9 list of ints
+
     Args:
         n: int number. must be <= 3**9
     Returns:
@@ -55,8 +55,9 @@ def ternary(n: int):
 
 
 def state_from_hash(hash_id: int):
-    """takes in a hash and outputs a 3x3 numpy array (a game state)
-    it's the inverse of hash_from_state (there is a bijection)
+    """takes in a hash and outputs a 3x3 numpy array (a game state) it's the inverse of hash_from_state (there is a
+    bijection)
+
     Args:
         hash_id: the hash of a game state. must be an int between 0 and 3**9.
     Returns:
@@ -72,6 +73,7 @@ def state_from_hash(hash_id: int):
 
 def chunkit(seq, num):
     """just chunks a list `num` parts
+
     Args:
         seq: the sequence to be chopped
         num: the number of chunks requested
@@ -90,9 +92,9 @@ def chunkit(seq, num):
 
 
 def hash_from_state(state):
-    """takes in a 3x3 numpy array (a game state)
-    and hashes it with powers of 3. returns an int.
-    it's the inverse of the state_from_hash
+    """takes in a 3x3 numpy array (a game state) and hashes it with powers of 3. returns an int. it's the inverse of
+    the state_from_hash
+
     Args:
         state: a 3x3 numpy array representing a tic-tac-toe game state. must contain only 0, 1, or 2's.
     Returns:
@@ -103,8 +105,7 @@ def hash_from_state(state):
 
 
 def count_visited_actions(agent, default_value):
-    """to check the percent of states and actions that
-    changed value in an angent after some training"""
+    """to check the percent of states and actions that changed value in an agent after some training"""
     all_actions = 0
     visited_actions = 0
     visited_states = 0
@@ -122,10 +123,9 @@ def count_visited_actions(agent, default_value):
 
 
 def time_average(vector, window=100):
-    """compute time averages for timeseries `vector`
-    `vector` must be a list/np.array of numbers
-    `window` is the averaging window
-    returns a list of numbers.
+    """compute time averages for timeseries `vector`. `vector` must be a list/np.array of numbers, `window` is the
+    averaging window. returns a list of numbers.
+
     Args:
         vector: a list of numbers
         window: the window of time over which to average
