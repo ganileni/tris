@@ -1,8 +1,11 @@
-from scripts.agent_settings import menace_description
-from tris.agents import HumanAgent
-from tris.rules import Match
+from scripts.agent_settings import menace_description, qlearning_description, random_description, \
+    deepq_learning_description
+from tris.agents import play_vs_human
 
-available_agents = [menace_description]
+available_agents = [menace_description,
+                    qlearning_description,
+                    deepq_learning_description,
+                    random_description]
 
 if __name__ == '__main__':
     while True:
@@ -37,16 +40,7 @@ if __name__ == '__main__':
                     break
                 else:
                     continue
-        human = HumanAgent()
-        match = Match(human, agent_instance)
-        # set agent to maximum greed
-        agent_instance.temperature = 0
-        print('\nMatch started. ', end='')
-        if not match.who_plays:
-            print(agent.name + 'agent plays first.')
-        else:
-            print('You play first.')
-        result = match.play()
+        play_vs_human(agent_instance, agent.name)
         answer = input('\nPlay again? (y/n) ').lower()
         if answer == 'n':
             break

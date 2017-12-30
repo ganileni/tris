@@ -1,7 +1,8 @@
 import numpy as np
 from copy import copy
+
 from tris.functions import pickle_save, pickle_load, softmax, state_from_hash, hash_from_state
-from tris.rules import hash_all_states
+from tris.rules import hash_all_states, Match
 
 
 class Step:
@@ -125,14 +126,21 @@ class RandomAgent(BaseAgent):
             .state_space[hashed_game_state]
             .actions)
         choice = np.random.choice(
-            list(
-                possible_actions.keys()),
-            size=1)[0]
+                list(
+                        possible_actions.keys()),
+                size=1)[0]
         return possible_actions[choice].coordinates, choice
 
     def endgame(self, reward):
         # do nothing
         pass
+
+    def save_agent(self, *args, **kwargs):
+        pass
+
+    @classmethod
+    def load_agent(cls, *args, **kwargs):
+        return cls()
 
 
 class HumanAgent(BaseAgent):
@@ -217,8 +225,10 @@ class MENACEAgent(BaseAgent):
         # number of beads per action will be proportional to probability of choice
         beads = np.array([current_state.actions[_].value for _ in actions])
         # normalize probabilities
-        try: beads = beads / beads.sum()
-        except RuntimeWarning: beads = 0 #in case you're attempting divide by zero
+        try:
+            beads = beads / beads.sum()
+        except RuntimeWarning:
+            beads = 0  # in case you're attempting divide by zero
         choice = np.random.choice(actions, size=1, p=beads)[0]
         return current_state.actions[choice].coordinates, choice
 
@@ -244,23 +254,47 @@ class QLearningAgent(BaseAgent):
         temperature: temperature of the softmax distribution used to choose next state from the Q-values of alternative possibilities.
         learning_rate: by how much to change the Q-values at each learning iteration.
         discount: by how much to discount future rewards.
+        policy: if 'softmax' (default behavior) the policy picks actions using a softmax distribution (and the epsilon parameter is ignored). if 'epsilon', epsilon-greedy policy (the temperature parameter is ignored)
+        epsilon: the epsilon parameter for the epsilon-greedy policy: pick a random action epsilon % of the times (between 0 and 1)
 
     """
 
-    def __init__(self, temperature=1, learning_rate=.1, discount=.9):
+    def __init__(self, temperature=1, learning_rate=.1, discount=.9, policy = 'softmax', epsilon = 0.1):
         super().__init__()
         self.temperature = temperature
         self.learning_rate = learning_rate
         self.discount = discount
+        self.epsilon = epsilon
+        self.policy = policy
+        if policy == 'softmax':
+            self.decision = self._decision_softmax
+        elif policy == 'epsilon':
+            self.decision = self._decision_epsilon
 
     def decide_move(self, game_state):
         possible_actions = self.state_space[game_state].actions
         # find Q-values for possible actions
         Q_values = [possible_actions[_].value for _ in possible_actions.keys()]
+        choice = self.decision(Q_values, possible_actions)
+        return possible_actions[choice].coordinates, choice
+
+    def _decision_softmax(self, Q_values, possible_actions):
+        # pick an action at random with softmax probability distribution
         choice = np.random.choice(list(possible_actions.keys()),
                                   size=1,
                                   p=softmax(Q_values, self.temperature))[0]
-        return possible_actions[choice].coordinates, choice
+        return choice
+
+    def _decision_epsilon(self, Q_values, possible_actions):
+        # epsilon % of the times random
+        if np.random.uniform() < self.epsilon:
+            choice = np.random.choice(list(possible_actions.keys()),
+                                      size=1,
+                                      )[0]
+        # the rest greedy
+        else:
+            choice = list(possible_actions.keys())[np.argmax(Q_values)]
+        return choice
 
     def endgame(self, reward):
         inv_history = reversed(self.history)
@@ -281,3 +315,17 @@ class QLearningAgent(BaseAgent):
             # reward is !=0 only in first step of the game!
             if reward_multiplier: reward_multiplier = 0
         self.history = []
+
+
+def play_vs_human(agent_instance, agent_name = 'Artificial'):
+    """let a human play a game against an instance of an agent"""
+    human = HumanAgent()
+    match = Match(human, agent_instance)
+    # set agent to maximum greed
+    setattr(agent_instance, 'temperature', 0)
+    print('\nMatch started. ', end='')
+    if not match.who_plays:
+        print(agent_name + ' agent plays first.')
+    else:
+        print('You play first.')
+    return match.play()
