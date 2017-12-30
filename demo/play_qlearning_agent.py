@@ -1,3 +1,5 @@
+"""this script demos how to initialize an agent and let it play against another agent."""
+
 from tris.rules import Match
 from tris.agents import RandomAgent, QLearningAgent
 
