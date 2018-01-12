@@ -175,7 +175,7 @@ class DeepQLearningAgent(BaseAgent):
         self.save_attrs['architecture'] = architecture
         self.save_attrs['activation'] = activation
         self.save_attrs['epsilon'] = epsilon
-        self.save_attrs['policy '] = policy
+        self.save_attrs['policy'] = policy
         if policy == 'softmax':
             self.decision = self._decision_softmax
         elif policy == 'epsilon':
@@ -200,7 +200,7 @@ class DeepQLearningAgent(BaseAgent):
         # evaluate Q-values with ANN
         Q_values = self._predict(game_state)
         # softmax choice
-        choice = self._decision(Q_values, game_state)
+        choice = self.decision(Q_values, game_state)
         return game_state.actions[choice].coordinates, choice
 
     def _decision_softmax(self, Q_values, game_state):
