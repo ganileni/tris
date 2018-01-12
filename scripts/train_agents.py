@@ -1,4 +1,4 @@
-from tris.agents import RandomAgent, MENACEAgent
+from tris.agents import RandomAgent, MENACEAgent, QLearningAgent
 from tris.nn import DeepQLearningAgent
 from tris.rules import Match
 from tqdm import tqdm
@@ -33,7 +33,7 @@ def train_MENACE(menace_description):
     return match_results
 
 
-def train_QLearning(qlearning_descritpion):
+def train_QLearning(qlearning_description):
     """train proedure for QLearningAgent."""
     # TODO -- look into optimal exploration/exploitation balance
     learning_rate = 0.1

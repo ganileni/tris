@@ -1,4 +1,7 @@
 """this scripts demos how to initialize agents and shows how they store memory of their actions."""
+
+import sys
+sys.path.append('../')
 from copy import deepcopy
 from tris.rules import Match
 from tris.agents import RandomAgent
