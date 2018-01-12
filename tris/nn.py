@@ -388,4 +388,9 @@ class DeepQLearningAgent(BaseAgent):
         # then we have to load the ANN parameters into the tensorflow graph
         saver = tf.train.Saver(var_list=agent._variables_to_save())
         saver.restore(agent.sess, path + CHECKPOINT_EXTENSION)
+        if 'policy' in save_attrs.keys():
+            if save_attrs['policy'] == 'softmax':
+                agent.decision = agent._decision_softmax
+            elif save_attrs['policy'] == 'epsilon':
+                agent.decision = agent._decision_epsilon
         return agent

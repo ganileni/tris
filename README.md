@@ -2,7 +2,11 @@
 
 Tris is a Python implementation of several reinforcement learning algoritms to play tic-tac-toe. At the moment it comprises: Q-learning, deep-Q learning and a MENACE algorithm. I plan to implement deep-Q learning with monte-carlo tree search and a Q-function approximator with gaussian processes.
 
-If you want to have a quick play against one of the agents, just start [`scripts/human_play.py`](scripts/human_play.py).
+If you want to have a quick play against one of the agents, just start [`scripts/human_play.py`](scripts/human_play.py) like this:
+```
+cd scripts/
+python human_play.py
+```
 
 ## Motivation
 
@@ -13,6 +17,7 @@ As an exercise, I decided to try and implement several reinforcement learning al
 ```
 from tris.rules import Match
 from tris.agents import RandomAgent, QLearningAgent
+from tris.functions import time_average
 import matplotlib.pyplot as plt
 
 # generate two agents

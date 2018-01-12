@@ -103,6 +103,12 @@ class BaseAgent:
         agent = cls()
         for key in _dict:
             setattr(agent, key, _dict[key])
+        if 'policy' in _dict.keys():
+            if _dict['policy'] == 'softmax':
+                agent.decision = agent._decision_softmax
+            elif _dict['policy'] == 'epsilon':
+                agent.decision = agent._decision_epsilon
+
         return agent
 
     def spawn_self_player(self):
@@ -336,6 +342,7 @@ def play_vs_human(agent_instance, agent_name='Artificial'):
     match = Match(human, agent_instance)
     # set agent to maximum greed
     setattr(agent_instance, 'temperature', 0)
+    setattr(agent_instance, 'epsilon', 0)
     print('\nMatch started. ', end='')
     if not match.who_plays:
         print(agent_name + ' agent plays first.')
